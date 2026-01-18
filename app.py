@@ -3,22 +3,22 @@ import fitz  # PyMuPDF
 from fpdf import FPDF
 from datetime import date
 
-# Cor verde extraída da identidade visual das barras de título do material [cite: 27, 28]
+# Cor verde oficial das barras de título do material
 COR_VERDE_DUO = (166, 201, 138) 
 
 st.set_page_config(page_title="Extrator Duo", page_icon="📝")
 
-# Interface do App
+# Estilização da Interface baseada na identidade visual do curso
 st.markdown(f"""
     <div style="background-color: rgb{COR_VERDE_DUO}; padding: 20px; border-radius: 10px; text-align: center;">
         <h1 style="color: white; margin: 0; font-family: sans-serif;">CURSOS DUO</h1>
-        <p style="color: white; margin: 0; font-weight: bold;">Organizador de Destaques e Revisão</p>
+        <p style="color: white; margin: 0; font-weight: bold;">Gerador de Resumos Organizados</p>
     </div>
     <br>
 """, unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Arraste o PDF da aula aqui", type="pdf")
-nome_modulo = st.text_input("Identificação do Material (ex: Direitos Difusos)", placeholder="Digite o tema do resumo...")
+uploaded_file = st.file_uploader("Arraste o PDF do Cursos Duo aqui", type="pdf")
+nome_modulo = st.text_input("Nome do Módulo/Tema", placeholder="Ex: Direitos Difusos e Coletivos")
 
 if uploaded_file is not None:
     try:
@@ -30,17 +30,19 @@ if uploaded_file is not None:
                 if annot.type[0] == 8: 
                     text = page.get_textbox(annot.rect)
                     if text.strip():
-                        highlights.append({"pag": page_num + 1, "texto": text.strip()})
+                        # LIMPEZA CRUCIAL: Remove quebras de linha internas para permitir a justificação
+                        texto_limpo = " ".join(text.split())
+                        highlights.append({"pag": page_num + 1, "texto": texto_limpo})
 
         if highlights:
-            st.success(f"Sucesso! Encontramos {len(highlights)} trechos destacados.")
+            st.success(f"Encontramos {len(highlights)} destaques para processar.")
 
             # --- GERAÇÃO DO PDF ---
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
             
-            # Cabeçalho Cursos Duo [cite: 1, 33]
+            # Cabeçalho Identidade Duo
             pdf.set_fill_color(*COR_VERDE_DUO)
             pdf.rect(0, 0, 210, 40, 'F')
             
@@ -49,46 +51,54 @@ if uploaded_file is not None:
             pdf.cell(0, 10, "RESUMO DESTAQUES - CURSOS DUO", ln=True, align='C')
             
             pdf.set_font("Helvetica", "I", 12)
-            pdf.cell(0, 10, f"Material: {nome_modulo if nome_modulo else 'Revisão Coletiva'}", ln=True, align='C')
+            pdf.cell(0, 10, f"Material: {nome_modulo if nome_modulo else 'Conteúdo de Estudo'}", ln=True, align='C')
             
             pdf.ln(25)
             
-            # Data e Formatação [cite: 4, 32]
+            # Data de emissão (seguindo padrão do curso)
             pdf.set_font("Helvetica", size=9)
             pdf.set_text_color(100, 100, 100)
             pdf.cell(0, 5, f"Gerado em: {date.today().strftime('%d/%m/%Y')}", ln=True, align='R')
             pdf.ln(5)
             
-            # Conteúdo dos Destaques
+            # Listagem dos Destaques Justificados
             pdf.set_font("Helvetica", size=11)
             pdf.set_text_color(0, 0, 0)
             
             for h in highlights:
-                txt = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                pdf.set_draw_color(*COR_VERDE_DUO)
-                pdf.set_line_width(0.5)
+                # Título da página em negrito
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.set_text_color(*COR_VERDE_DUO)
+                pdf.cell(0, 8, f"PÁGINA {h['pag']}", ln=True)
                 
-                # A mágica do texto justificado está no 'align='J'' abaixo
-                pdf.multi_cell(0, 8, f"PAGINA {h['pag']}: {txt}", border='L', align='J')
-                pdf.ln(4)
+                # Texto do destaque com JUSTIFICAÇÃO TOTAL ('J')
+                pdf.set_font("Helvetica", size=11)
+                pdf.set_text_color(30, 30, 30)
+                
+                # Tratamento de caracteres especiais para evitar erros binários
+                txt_final = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                
+                pdf.multi_cell(0, 7, txt_final, align='J')
+                pdf.ln(5) # Espaço entre os blocos
             
-            # Rodapé institucional [cite: 21, 30]
+            # Rodapé institucional 
             pdf.set_y(-20)
             pdf.set_font("Helvetica", "I", 8)
-            pdf.set_text_color(120, 120, 120)
+            pdf.set_text_color(150, 150, 150)
             pdf.cell(0, 10, "Dúvidas e sugestões: sugestoes@cursosduo.com.br", align='C')
             
+            # Preparação do arquivo para download
             pdf_bytes = bytes(pdf.output())
-            nome_arquivo = f"Resumo_{nome_modulo.replace(' ', '_')}.pdf" if nome_modulo else "resumo_duo.pdf"
+            nome_arq = f"Resumo_{nome_modulo.replace(' ', '_')}.pdf" if nome_modulo else "resumo_duo.pdf"
             
             st.download_button(
-                label="📥 Baixar PDF Justificado",
+                label="📥 Baixar PDF com Texto Justificado",
                 data=pdf_bytes,
-                file_name=nome_arquivo,
+                file_name=nome_arq,
                 mime="application/pdf",
             )
         else:
-            st.warning("Nenhum grifo encontrado no material.")
+            st.warning("Nenhum grifo identificado. Verifique se utilizou a ferramenta de marca-texto.")
             
     except Exception as e:
-        st.error(f"Erro ao processar: {e}")
+        st.error(f"Erro técnico: {e}")
