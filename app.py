@@ -3,7 +3,7 @@ import fitz  # PyMuPDF
 from fpdf import FPDF
 from datetime import date
 
-# Identidade Visual Duo: Verde das barras de título [cite: 3]
+# Identidade Visual Duo: Verde das barras de título [cite: 27]
 COR_VERDE_DUO = (166, 201, 138) 
 
 st.set_page_config(page_title="Extrator Duo", page_icon="📝")
@@ -30,7 +30,7 @@ if uploaded_file is not None:
                 if annot.type[0] == 8: 
                     text = page.get_textbox(annot.rect)
                     if text.strip():
-                        # Remove quebras de linha internas para garantir que a justificação 'J' funcione
+                        # Remove quebras de linha para garantir a justificação perfeita
                         texto_limpo = " ".join(text.split())
                         highlights.append({"pag": page_num + 1, "texto": texto_limpo})
 
@@ -42,7 +42,7 @@ if uploaded_file is not None:
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
             
-            # Cabeçalho Superior Duo
+            # Cabeçalho Superior Duo [cite: 1, 5]
             pdf.set_fill_color(*COR_VERDE_DUO)
             pdf.rect(0, 0, 210, 40, 'F')
             
@@ -55,7 +55,7 @@ if uploaded_file is not None:
             
             pdf.ln(25)
             
-            # Data de emissão conforme padrão do curso [cite: 4]
+            # Data seguindo o padrão do material [cite: 4, 22]
             pdf.set_font("Helvetica", size=9)
             pdf.set_text_color(100, 100, 100)
             pdf.cell(0, 5, f"Gerado em: {date.today().strftime('%d/%m/%Y')}", ln=True, align='R')
@@ -63,39 +63,36 @@ if uploaded_file is not None:
             
             # Listagem Numerada e Justificada
             for i, h in enumerate(highlights, 1):
-                # Título do Item: NUMERAÇÃO | PÁGINA
                 pdf.set_font("Helvetica", "B", 10)
                 pdf.set_text_color(*COR_VERDE_DUO)
                 pdf.cell(0, 8, f"ITEM {i:02d} | PÁGINA {h['pag']}", ln=True)
                 
-                # Texto do destaque com JUSTIFICAÇÃO TOTAL ('J')
                 pdf.set_font("Helvetica", size=11)
                 pdf.set_text_color(40, 40, 40)
                 
-                # Tratamento de caracteres especiais
+                # Tratamento de caracteres e justificação total ('J')
                 txt_final = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                
                 pdf.multi_cell(0, 7, txt_final, align='J')
-                pdf.ln(5) # Espaçamento entre blocos
+                pdf.ln(5) 
             
-            # Rodapé com e-mail de suporte [cite: 21]
+            # Rodapé com e-mail institucional [cite: 21, 30]
             pdf.set_y(-20)
             pdf.set_font("Helvetica", "I", 8)
             pdf.set_text_color(150, 150, 150)
             pdf.cell(0, 10, "Dúvidas e sugestões: sugestoes@cursosduo.com.br", align='C')
             
-            # Preparação do arquivo para download
+            # Preparação segura para download
             pdf_bytes = bytes(pdf.output())
             nome_arq = f"Resumo_{nome_modulo.replace(' ', '_')}.pdf" if nome_modulo else "resumo_duo.pdf"
             
             st.download_button(
-                label="📥 Baixar PDF Numerado e Justificado",
+                label="📥 Baixar PDF do Resumo",
                 data=pdf_bytes,
                 file_name=nome_arq,
                 mime="application/pdf",
             )
         else:
-            st.warning("Nenhum destaque encontrado. Verifique se utilizou a ferramenta de marca-texto.")
+            st.warning("Nenhum destaque encontrado no material.")
             
     except Exception as e:
-        st.error(f"Erro ao processar o material: {e}")
+        st.error(f"Erro ao processar: {e}")
