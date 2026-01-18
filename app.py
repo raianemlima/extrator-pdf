@@ -12,13 +12,13 @@ import random
 COR_VERDE_DUO_RGB = (166, 201, 138) 
 
 def limpar_texto_total(texto):
-    """Mapeia símbolos complexos para evitar o erro '?' observado no material de Criminologia"""
+    """Mapeia símbolos complexos para evitar o erro '?' e falhas de espaço horizontal"""
     mapa_sinais = {
         '\u2013': '-', '\u2014': '-', '\u201c': '"', '\u201d': '"',
         '\u2018': "'", '\u2019': "'", '\u2022': '•', '\uf0b7': '•',
         '\uf02d': '-', '\uf0d8': '>', '\u2026': '...', '\u00a0': ' ',
         '\u2010': '-', '\u2011': '-', '\u00ba': 'º', '\u00aa': 'ª',
-        '? ': '- ', ' :': ':' # Ajuste para erros de renderização comuns
+        '? ': '- ', ' :': ':'
     }
     for original, substituto in mapa_sinais.items():
         texto = texto.replace(original, substituto)
@@ -51,10 +51,11 @@ if uploaded_file is not None:
 
         if highlights:
             st.success(f"Análise concluída: {len(highlights)} pontos de estudo ativos.")
-            tab1, tab2, tab3 = st.tabs(["📄 Downloads do Resumo", "🗂️ Flashcards Premium", "🧠 Quiz Dinâmico"])
+            tab1, tab2, tab3 = st.tabs(["📄 Downloads do Resumo", "🗂️ Flashcards e P&R", "🧠 Quiz Dinâmico"])
 
+            # --- TAB 1: DOWNLOADS ---
             with tab1:
-                # GERAÇÃO PDF (Arial/Helvetica 12)
+                # PDF
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_fill_color(*COR_VERDE_DUO_RGB)
@@ -65,7 +66,6 @@ if uploaded_file is not None:
                 pdf.set_font("Helvetica", "B", 14)
                 pdf.cell(0, 10, "Cursos Duo", ln=True, align='C')
                 pdf.ln(25)
-                
                 pdf.set_font("Helvetica", size=10)
                 pdf.set_text_color(100, 100, 100)
                 pdf.cell(0, 5, f"Material: {nome_modulo} | Gerado em: {date.today().strftime('%d/%m/%Y')}", ln=True, align='R')
@@ -77,27 +77,29 @@ if uploaded_file is not None:
                     pdf.cell(0, 8, f"ITEM {i:02d} | PÁGINA {h['pag']}", ln=True)
                     pdf.set_font("Helvetica", size=12) 
                     pdf.set_text_color(0, 0, 0)
-                    txt_enc = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                    pdf.multi_cell(0, 7, txt_enc, align='J')
+                    txt_pdf = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(0, 7, txt_pdf, align='J')
                     pdf.ln(4)
                 
-                # GERAÇÃO WORD (Título Verde)
+                # WORD COM TÍTULO VERDE
                 word_doc = Document()
                 h_word = word_doc.add_heading(level=0)
                 r_h = h_word.add_run("RESUMO INTELIGENTE")
                 r_h.font.color.rgb = RGBColor(166, 201, 138)
-                word_doc.add_paragraph("Cursos Duo").bold = True
+                p_sub = word_doc.add_paragraph()
+                r_sub = p_sub.add_run("Cursos Duo")
+                r_sub.bold = True
                 word_doc.add_paragraph(f"Material: {nome_modulo} | Data: {date.today().strftime('%d/%m/%Y')}")
 
                 for i, h in enumerate(highlights, 1):
                     p = word_doc.add_paragraph()
                     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                    run_t = p.add_run(f"ITEM {i:02d} | PÁGINA {h['pag']}\n")
-                    run_t.bold = True
-                    run_t.font.color.rgb = RGBColor(166, 201, 138)
-                    run_text = p.add_run(h['texto'])
-                    run_text.font.name = 'Arial'
-                    run_text.font.size = Pt(12)
+                    rt = p.add_run(f"ITEM {i:02d} | PÁGINA {h['pag']}\n")
+                    rt.bold = True
+                    rt.font.color.rgb = RGBColor(166, 201, 138)
+                    rtx = p.add_run(h['texto'])
+                    rtx.font.name = 'Arial'
+                    rtx.font.size = Pt(12)
 
                 c1, c2 = st.columns(2)
                 with c1: st.download_button("📥 Baixar em PDF", bytes(pdf.output()), "Resumo_Duo.pdf")
@@ -106,65 +108,61 @@ if uploaded_file is not None:
                     word_doc.save(buf)
                     st.download_button("📥 Baixar em Word", buf.getvalue(), "Resumo_Duo.docx")
 
+            # --- TAB 2: FLASHCARDS E P&R ---
             with tab2:
-                st.subheader("🗂️ Flashcards de Memória Ativa")
-                st.write("Cartões prontos para impressão e perguntas de fixação:")
+                st.subheader("Estudo Ativo: Flashcards e P&R Inteligentes")
                 
-                # PDF de Flashcards Inteligentes (2 por página, Frente/Verso simulado)
-                f_pdf = FPDF()
-                f_pdf.set_auto_page_break(auto=True, margin=15)
-                
-                for i, h in enumerate(highlights, 1):
-                    f_pdf.add_page()
-                    # Cabeçalho do Cartão
-                    f_pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-                    f_pdf.rect(10, 10, 190, 20, 'F')
-                    f_pdf.set_font("Helvetica", "B", 14)
-                    f_pdf.set_text_color(255, 255, 255)
-                    f_pdf.set_xy(10, 15)
-                    f_pdf.cell(190, 10, f"FLASHCARD {i:02d} | ORIGEM: PÁGINA {h['pag']}", align='C')
-                    
-                    # Espaço da Pergunta (Estudo Ativo)
-                    f_pdf.ln(25)
-                    f_pdf.set_font("Helvetica", "B", 12)
-                    f_pdf.set_text_color(*COR_VERDE_DUO_RGB)
-                    f_pdf.cell(0, 10, "CONCEITO PARA REVISAR:", ln=True)
-                    
-                    # Conteúdo (Resposta/Destaque)
-                    f_pdf.set_font("Helvetica", size=12)
-                    f_pdf.set_text_color(40, 40, 40)
-                    txt_flash = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                    f_pdf.multi_cell(0, 8, txt_flash, align='J', border=0)
-                    
-                    # Linha de Corte
-                    f_pdf.set_y(260)
-                    f_pdf.set_draw_color(200, 200, 200)
-                    f_pdf.dashed_line(10, 270, 200, 270)
-
-                col_x, col_y = st.columns(2)
-                with col_x:
-                    st.download_button("✂️ Baixar Flashcards (Modo Recorte)", bytes(f_pdf.output()), "Flashcards_Duo_Premium.pdf")
-                
-                # Roteiro P&R
+                # Roteiro P&R Avançado (Correção de Espaço)
                 pr_pdf = FPDF()
+                pr_pdf.set_auto_page_break(auto=True, margin=15)
                 pr_pdf.add_page()
                 pr_pdf.set_font("Helvetica", "B", 16)
-                pr_pdf.cell(0, 10, "ROTEIRO P&R - ESTUDO ATIVO", ln=True, align='C')
+                pr_pdf.cell(0, 10, "ROTEIRO P&R - CURSOS DUO", ln=True, align='C')
+                
                 for i, h in enumerate(highlights, 1):
                     pr_pdf.ln(5)
+                    pr_pdf.set_x(10) # Garante o início na margem esquerda
                     pr_pdf.set_font("Helvetica", "B", 11)
                     pr_pdf.set_text_color(*COR_VERDE_DUO_RGB)
-                    pr_pdf.cell(0, 8, f"QUESTÃO {i:02d} (Pág. {h['pag']}):", ln=True)
+                    pr_pdf.cell(0, 8, f"PERGUNTA {i:02d} (Pág. {h['pag']}):", ln=True)
+                    
                     pr_pdf.set_font("Helvetica", "I", 11)
                     pr_pdf.set_text_color(50, 50, 50)
-                    pr_pdf.multi_cell(0, 6, "Como você explicaria este ponto central do material?", align='L')
-                    pr_pdf.set_font("Helvetica", size=11)
+                    pr_pdf.multi_cell(190, 7, "Qual a tese central ou conceito explorado neste trecho do material?", align='L')
+                    
+                    pr_pdf.set_font("Helvetica", "B", 11)
+                    pr_pdf.set_text_color(*COR_VERDE_DUO_RGB)
+                    pr_pdf.cell(0, 8, "RESPOSTA:", ln=True)
+                    
+                    pr_pdf.set_font("Helvetica", size=12)
                     pr_pdf.set_text_color(0, 0, 0)
                     txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                    pr_pdf.multi_cell(0, 7, f"RESPOSTA: {txt_pr}", align='J', border='L')
+                    pr_pdf.multi_cell(190, 7, txt_pr, align='J')
+                    pr_pdf.ln(4)
+                    pr_pdf.line(10, pr_pdf.get_y(), 200, pr_pdf.get_y())
+
+                # Flashcards Estilo Grade (Recortáveis)
+                f_pdf = FPDF()
+                f_pdf.set_auto_page_break(auto=True, margin=10)
+                f_pdf.add_page()
                 
-                with col_y:
-                    st.download_button("📝 Baixar Roteiro P&R", bytes(pr_pdf.output()), "Roteiro_PR_Duo.pdf")
+                for i, h in enumerate(highlights, 1):
+                    # Cabeçalho do Flashcard
+                    f_pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+                    f_pdf.set_text_color(255, 255, 255)
+                    f_pdf.set_font("Helvetica", "B", 10)
+                    f_pdf.cell(190, 8, f" FLASHCARD {i:02d} | ORIGEM: PÁGINA {h['pag']}", border=1, ln=True, fill=True)
+                    
+                    # Conteúdo do Flashcard
+                    f_pdf.set_text_color(0, 0, 0)
+                    f_pdf.set_font("Helvetica", size=11)
+                    txt_f = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                    f_pdf.multi_cell(190, 8, txt_f, border=1, align='J')
+                    f_pdf.ln(5) # Espaço entre os cartões
+
+                col_a, col_b = st.columns(2)
+                with col_a: st.download_button("📝 Baixar Roteiro P&R", bytes(pr_pdf.output()), "Roteiro_PR_Duo.pdf")
+                with col_b: st.download_button("✂️ Baixar Flashcards", bytes(f_pdf.output()), "Flashcards_Duo.pdf")
 
             with tab3:
                 st.subheader("🧠 Quiz de Recuperação")
