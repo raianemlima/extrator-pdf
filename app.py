@@ -31,11 +31,9 @@ def gerar_pergunta_inteligente(texto):
     return f"Apresente a natureza jurídica, os principais requisitos e as consequências de: {tema}."
 
 def limpar_texto_total(texto):
-    """Remove referências numéricas de rodapé (ex: Federal5) e corrige símbolos"""
-    # Remove números de rodapé colados (Federal5 -> Federal)
+    """Remove referências numéricas de rodapé e corrige símbolos"""
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚçÇ]{3,})(\d+)', r'\1', texto)
     texto = re.sub(r'(\.)(\d+)', r'\1', texto)
-    
     mapa_sinais = {
         '\u2013': '-', '\u2014': '-', '\u201c': '"', '\u201d': '"',
         '\u2022': '•', '\uf0b7': '•', '\uf02d': '-', '\u2026': '...',
@@ -75,9 +73,8 @@ if uploaded_file is not None:
             st.success(f"{len(highlights)} pontos de estudo identificados.")
             tab1, tab2, tab3 = st.tabs(["📄 Downloads do Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
 
-            # --- TAB 1: DOWNLOADS RESTAURADA ---
+            # --- TAB 1: DOWNLOADS ---
             with tab1:
-                # Gerador PDF
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_fill_color(*COR_VERDE_DUO_RGB)
@@ -97,7 +94,6 @@ if uploaded_file is not None:
                     pdf.multi_cell(0, 7, txt_pdf, align='J')
                     pdf.ln(4)
                 
-                # Gerador Word com Título Verde
                 word_doc = Document()
                 h_word = word_doc.add_heading(level=0)
                 r_h = h_word.add_run("RESUMO INTELIGENTE")
@@ -121,42 +117,43 @@ if uploaded_file is not None:
                     buf = io.BytesIO(); word_doc.save(buf)
                     st.download_button("📥 Baixar em Word", buf.getvalue(), f"{nome_f}.docx")
 
-            # --- TAB 2: FLASHCARDS E P&R INTELIGENTES ---
+            # --- TAB 2: FLASHCARDS E P&R ---
             with tab2:
                 st.subheader("Estudo Ativo")
                 pr_pdf = FPDF()
+                pr_pdf.set_auto_page_break(auto=True, margin=15)
                 pr_pdf.add_page()
-                pr_pdf.set_font("Helvetica", "B", 16); pr_pdf.set_text_color(*COR_VERDE_DUO_RGB)
-                pr_pdf.cell(0, 10, "ROTEIRO P&R - BANCA CURSOS DUO", ln=True, align='C')
+                
+                # Cabeçalho Duo (Removido o título solicitado)
+                pr_pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+                pr_pdf.rect(0, 0, 210, 15, 'F')
+                pr_pdf.ln(10)
                 
                 for i, h in enumerate(highlights, 1):
                     enunciado = gerar_pergunta_inteligente(h['texto'])
-                    pr_pdf.ln(5); pr_pdf.set_fill_color(248, 252, 248)
-                    pr_pdf.set_font("Helvetica", "B", 11); pr_pdf.set_text_color(60, 90, 60)
-                    pr_pdf.cell(0, 10, f"  QUESTÃO {i:02d} (Pág. {h['pag']})", ln=True, fill=True)
-                    pr_pdf.set_font("Helvetica", "B", 11); pr_pdf.set_text_color(0, 0, 0)
-                    pr_pdf.multi_cell(0, 8, f"ENUNCIADO: {enunciado}", align='L')
-                    pr_pdf.set_font("Helvetica", "B", 10); pr_pdf.set_text_color(*COR_VERDE_DUO_RGB)
-                    pr_pdf.cell(0, 8, "PADRÃO DE RESPOSTA:", ln=True)
-                    pr_pdf.set_font("Helvetica", size=12)
+                    
+                    # Layout da Pergunta
+                    pr_pdf.set_fill_color(248, 252, 248)
+                    pr_pdf.set_font("Helvetica", "B", 10); pr_pdf.set_text_color(60, 90, 60)
+                    pr_pdf.cell(190, 8, f"  QUESTÃO {i:02d} (Pág. {h['pag']})", ln=True, fill=True, border='B')
+                    
+                    # Enunciado com fonte ajustada
+                    pr_pdf.set_font("Helvetica", "B", 10); pr_pdf.set_text_color(0, 0, 0)
+                    pr_pdf.multi_cell(190, 6, f"ENUNCIADO: {enunciado}", align='L')
+                    
+                    # Resposta
+                    pr_pdf.ln(1)
+                    pr_pdf.set_font("Helvetica", "B", 9); pr_pdf.set_text_color(*COR_VERDE_DUO_RGB)
+                    pr_pdf.cell(190, 6, "PADRÃO DE RESPOSTA:", ln=True)
+                    
+                    pr_pdf.set_font("Helvetica", size=10); pr_pdf.set_text_color(20, 20, 20)
                     txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-                    pr_pdf.multi_cell(0, 7, txt_pr, align='J', border='L')
-                    pr_pdf.ln(5); pr_pdf.line(10, pr_pdf.get_y(), 200, pr_pdf.get_y())
+                    # Borda lateral verde para organização
+                    pr_pdf.set_draw_color(*COR_VERDE_DUO_RGB)
+                    pr_pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
+                    pr_pdf.ln(6)
 
                 st.download_button("📝 Baixar Roteiro P&R", bytes(pr_pdf.output()), "Roteiro_PR_Duo.pdf")
-
-            with tab3:
-                st.subheader("🧠 Quiz Rápido")
-                amostra = random.sample(highlights, min(len(highlights), 3))
-                for idx, item in enumerate(amostra):
-                    palavras = item['texto'].split()
-                    if len(palavras) > 5:
-                        secreta = max(palavras, key=len).strip(".,;:()")
-                        st.write(f"**Questão {idx+1}:** {item['texto'].replace(secreta, '__________')}")
-                        resp = st.text_input(f"Complete (Pág {item['pag']}):", key=f"qz_{idx}")
-                        if st.button(f"Validar {idx+1}"):
-                            if resp.lower().strip() == secreta.lower().strip(): st.success("Correto!")
-                            else: st.warning(f"Resposta: {secreta}")
 
     except Exception as e:
         st.error(f"Erro: {e}")
