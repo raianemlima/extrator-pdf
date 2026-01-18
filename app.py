@@ -707,15 +707,11 @@ def renderizar_cabecalho():
                     margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
             <h1 style="color: white; margin: 0; font-family: 'Inter', sans-serif; 
                        font-size: 2.2rem; font-weight: 700; letter-spacing: -0.5px;">
-                🎓 RESUMO INTELIGENTE
+                RESUMO INTELIGENTE
             </h1>
             <p style="color: rgba(255,255,255,0.95); margin: 0.8rem 0 0 0; 
                       font-weight: 600; font-size: 1.1rem;">
-                Cursos Duo • Sistema de Estudo Avançado
-            </p>
-            <p style="color: rgba(255,255,255,0.85); margin: 0.5rem 0 0 0; 
-                      font-size: 0.9rem;">
-                IA Jurídica • Análise Inteligente • Revisão Ativa
+                Cursos Duo
             </p>
         </div>
     """, unsafe_allow_html=True)
