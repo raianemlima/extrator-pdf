@@ -1,4 +1,3 @@
 streamlit
 pymupdf
 fpdf2
-requests
