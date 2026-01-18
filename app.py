@@ -8,35 +8,31 @@ from datetime import date, datetime
 import io
 import random
 import re
-from typing import List, Dict, Tuple # Importação necessária aqui no topo
+from typing import List, Dict, Tuple
 from collections import Counter
 
 # Constantes - Identidade Visual Cursos Duo
 COR_VERDE_DUO_RGB = (166, 201, 138)
 COR_VERDE_DUO_HEX = "#A6C98A"
 COR_VERDE_ESCURO = "#7A9B6E"
-COR_VERDE_CLARO = "#D4E7C5"
 COR_TEXTO_ESCURO = "#2C3E50"
-COR_FUNDO_CLARO = "#F8FCF8"
 
-# Configuração da página - Essencial para Mobile e Tablet
+# Configuração da página
 st.set_page_config(
     page_title="Resumo Inteligente - Duo",
     page_icon="🎓",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="centered"
 )
 
-# --- CSS CUSTOMIZADO (IDENTIDADE VISUAL) ---
+# --- CSS CUSTOMIZADO (RESPONSIVO E PROFISSIONAL) ---
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; color: {COR_TEXTO_ESCURO}; }}
-    .stApp {{ background: linear-gradient(135deg, #f5f7fa 0%, #f8fcf8 100%); }}
     .card-duo {{
         background: white; padding: 1.5rem; border-radius: 12px;
-        border-left: 4px solid {COR_VERDE_DUO_HEX};
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin: 1rem 0;
+        border-left: 5px solid {COR_VERDE_DUO_HEX};
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 1rem 0;
     }}
     .stDownloadButton > button {{
         background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%);
@@ -45,127 +41,114 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE PROCESSAMENTO ---
-
-def analisar_conteudo_juridico(texto: str) -> Dict[str, any]:
-    """Análise inteligente para identificar temas e complexidade."""
-    analise = {"tema_principal": None, "artigos_citados": [], "jurisprudencia": [], "nivel_complexidade": "Média"}
-    texto_upper = texto.upper()
-    
-    # Identificação de Temas Jurídicos
-    temas_mapa = {
-        "CPI": ["CPI", "COMISSÃO PARLAMENTAR", "INQUÉRITO"],
-        "Imunidades": ["IMUNIDADE", "INVIOLABILIDADE", "PRERROGATIVA"],
-        "Processo Legislativo": ["PROCESSO LEGISLATIVO", "EMENDA", "LEI COMPLEMENTAR"],
-        "Poder Executivo": ["PRESIDENTE", "MINISTRO", "DECRETO"],
-        "Improbidade": ["LIA", "IMPROBIDADE", "DOLO", "14.230"],
-        "Criminologia": ["LABELLING", "ETIQUETAMENTO", "4 DS", "REAÇÃO SOCIAL"]
-    }
-    
-    for tema, palavras in temas_mapa.items():
-        if any(p in texto_upper for p in palavras):
-            analise["tema_principal"] = tema
-            break
-            
-    artigos = re.findall(r'ART\.?\s*(\d+)', texto, re.IGNORECASE)
-    analise["artigos_citados"] = list(set(artigos))
-    return analise
+# --- FUNÇÕES DE LIMPEZA E ANÁLISE JURÍDICA ---
 
 def limpar_texto_total(texto: str) -> str:
-    """Extração fiel de %$()_* e remoção de resíduos de rodapé."""
+    """Extração fiel de %$()_* e remoção de rodapés."""
     if not texto: return ""
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚçÇ]{3,})(\d+)', r'\1', texto)
     texto = re.sub(r'(\.)(\d+)', r'\1', texto)
-    mapa = {'\u2013': '-', '\u2014': '-', '\u201c': '"', '\u201d': '"', '•': '*', '\uf0b7': '*', '? ': '- '}
+    mapa = {'\u2013': '-', '\u2014': '-', '\u2022': '•', '\uf0b7': '•', '? ': '- '}
     for original, substituto in mapa.items():
         texto = texto.replace(original, substituto)
     return " ".join(texto.split())
 
-def gerar_pergunta_contextualizada(texto: str, analise: Dict = None) -> str:
-    """Gera enunciados técnicos e completos para evitar perguntas curtas."""
-    if not analise: analise = analisar_conteudo_juridico(texto)
+def gerar_pergunta_contextualizada(texto: str) -> str:
+    """Gera enunciados técnicos para evitar perguntas curtas."""
     t = texto.lower()
-    
-    # Enunciados específicos baseados em temas
-    if analise["tema_principal"] == "CPI":
-        return "Acerca das Comissões Parlamentares de Inquérito (CPI), analise a validade do ato de criação considerando a natureza de direito das minorias e a exigência de fato determinado."
-    if analise["tema_principal"] == "Improbidade":
-        return "Sobre a Lei de Improbidade Administrativa e suas alterações recentes (Lei 14.230/21), julgue o item quanto à exigência de dolo e conduta."
-    if "stf" in t or "stj" in t:
-        return "Considerando a jurisprudência atualizada dos Tribunais Superiores e as teses fixadas sobre a matéria, julgue o item a seguir."
-    
-    # Fallback para perguntas robustas
-    palavras = [p for p in texto.split() if len(p) > 3]
-    tema = " ".join(palavras[:5]).strip(".,;:- ")
-    return f"Considerando os aspectos doutrinários e a fundamentação legal sobre '{tema}', analise se a afirmação abaixo está correta."
+    if "cpi" in t: return "Acerca das Comissões Parlamentares de Inquérito, analise os requisitos constitucionais de criação."
+    if "stf" in t or "stj" in t: return "Considerando a jurisprudência atualizada dos Tribunais Superiores, julgue o item a seguir."
+    if "parlamentar" in t: return "Sobre o estatuto dos congressistas e suas garantias, analise a afirmação baseada no material."
+    return f"Considerando os aspectos jurídicos de '{' '.join(texto.split()[:5])}', julgue se o item está correto."
 
-def extrair_destaques(pdf_file) -> Tuple[List[Dict], str]:
-    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-    highlights = []
-    texto_completo = ""
-    for page_num, page in enumerate(doc):
-        texto_completo += page.get_text() + "\n"
-        for annot in page.annots():
-            if annot.type[0] == 8:
-                txt = limpar_texto_total(page.get_textbox(annot.rect))
-                if txt:
-                    highlights.append({"pag": page_num + 1, "texto": txt, "analise": analisar_conteudo_juridico(txt)})
-    return highlights, texto_completo
+# --- GERAÇÃO DE DOCUMENTOS (CORREÇÃO DO ERRO DE DOWNLOAD) ---
 
-# --- INTERFACE E ABAS ---
+def criar_pdf_resumo(highlights: List[Dict], nome: str) -> bytes:
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+    pdf.rect(0, 0, 210, 40, 'F')
+    pdf.set_font("Helvetica", "B", 16); pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 15, "RESUMO INTELIGENTE - DUO", ln=True, align='C')
+    pdf.ln(25)
+    for h in highlights:
+        pdf.set_font("Helvetica", "B", 11); pdf.set_text_color(*COR_VERDE_DUO_RGB)
+        pdf.cell(0, 8, f"PÁGINA {h['pag']}", ln=True)
+        pdf.set_font("Helvetica", size=12); pdf.set_text_color(0, 0, 0)
+        txt = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(190, 7, txt, align='J')
+        pdf.ln(4)
+    return bytes(pdf.output())
+
+def criar_word_resumo(highlights: List[Dict]) -> bytes:
+    doc = Document()
+    titulo = doc.add_heading("RESUMO INTELIGENTE", 0)
+    for h in highlights:
+        p = doc.add_paragraph()
+        run = p.add_run(f"PÁGINA {h['pag']}\n"); run.bold = True; run.font.color.rgb = RGBColor(*COR_VERDE_DUO_RGB)
+        rtx = p.add_run(h['texto']); rtx.font.name = 'Arial'; rtx.font.size = Pt(12); p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+# --- INTERFACE PRINCIPAL ---
 
 def main():
-    st.markdown(f"""<div style="background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%); padding: 2rem; border-radius: 15px; text-align: center; margin-bottom: 2rem; color: white;">
+    st.markdown(f"""<div style="background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%); padding: 2rem; border-radius: 15px; text-align: center; color: white; margin-bottom: 2rem;">
         <h1 style="margin:0;">RESUMO INTELIGENTE</h1><p style="font-weight:600;">Cursos Duo</p></div>""", unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader("Suba o material do Cursos Duo (PDF)", type="pdf")
     nome_modulo = st.text_input("Identificação do Material", value="Revisão Ponto 6")
 
     if uploaded_file:
-        highlights, texto_completo = extrair_destaques(uploaded_file)
+        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        highlights = []
+        texto_completo = ""
+        for page_num, page in enumerate(doc):
+            texto_completo += page.get_text() + " "
+            for annot in page.annots():
+                if annot.type[0] == 8:
+                    txt = limpar_texto_total(page.get_textbox(annot.rect))
+                    if txt: highlights.append({"pag": page_num + 1, "texto": txt})
+
         if highlights:
-            st.success(f"✅ {len(highlights)} pontos de estudo identificados.")
-            tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado C/E"])
+            st.success(f"✅ {len(highlights)} pontos identificados.")
+            tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Revisão", "🧠 Simulado C/E"])
 
             with tab1:
                 col1, col2 = st.columns(2)
                 with col1:
-                    pdf_res = FPDF() # Lógica simplificada para exemplo
-                    pdf_res.add_page(); pdf_res.set_font("Arial", size=12); pdf_res.cell(200, 10, txt="Resumo Duo", ln=True)
-                    st.download_button("📥 Baixar PDF", pdf_res.output(), "Resumo.pdf")
+                    pdf_data = criar_pdf_resumo(highlights, nome_modulo)
+                    st.download_button("📥 Baixar PDF", pdf_data, "Resumo.pdf", "application/pdf")
                 with col2:
-                    st.download_button("📥 Baixar Word", b"word_data", "Resumo.docx")
+                    word_data = criar_word_resumo(highlights)
+                    st.download_button("📥 Baixar Word", word_data, "Resumo.docx")
 
             with tab2:
-                st.info("💡 Flashcards e P&R gerados a partir dos seus grifos.")
-                for i, h in enumerate(highlights[:10]): # Mostra alguns na tela
-                    st.markdown(f"**Pergunta:** {gerar_pergunta_contextualizada(h['texto'])}")
-                    with st.expander("Ver Resposta"): st.write(h['texto'])
+                for h in highlights[:10]:
+                    with st.expander(f"Pág. {h['pag']} - Ver Questão"):
+                        st.write(f"**Pergunta:** {gerar_pergunta_contextualizada(h['texto'])}")
+                        st.write(f"**Resposta:** {h['texto']}")
 
             with tab3:
                 st.subheader("🧠 Simulado Certo ou Errado")
-                st.write("Julgue os itens baseados no seu material:")
-                
-                # CORREÇÃO DO QUIZ: Processamento para evitar frases curtas
+                # CORREÇÃO DO QUIZ: Reconstrução de frases longas para evitar perguntas curtas
                 texto_limpo = texto_completo.replace('\n', ' ')
                 frases = [f.strip() for f in re.split(r'(?<=[.!?])\s+', texto_limpo) if len(f.strip()) > 150]
                 
                 if frases:
-                    if 'simu_questoes' not in st.session_state or st.button("🔄 Novas Questões"):
+                    if 'questoes' not in st.session_state or st.button("🔄 Gerar Novas Questões"):
                         selecionados = random.sample(frases, min(len(frases), 5))
-                        st.session_state.simu_questoes = [{"enunciado": gerar_pergunta_contextualizada(f), "item": f} for f in selecionados]
+                        st.session_state.questoes = [{"p": gerar_pergunta_contextualizada(f), "t": f} for f in selecionados]
                     
-                    for idx, q in enumerate(st.session_state.simu_questoes):
-                        st.markdown(f"""<div class="card-duo">
-                            <b>QUESTÃO {idx+1:02d}</b><br>
-                            <small>{q['enunciado']}</small><br><br>
-                            <i>"...{q['item']}..."</i></div>""", unsafe_allow_html=True)
-                        resp = st.radio("Avaliação:", ["Selecione", "Certo", "Errado"], key=f"r_{idx}", horizontal=True)
+                    for idx, q in enumerate(st.session_state.questoes):
+                        st.markdown(f"""<div class="card-duo"><b>QUESTÃO {idx+1}</b><br><small>{q['p']}</small><br><br><i>"...{q['t']}..."</i></div>""", unsafe_allow_html=True)
+                        resp = st.radio("Julgamento:", ["Selecione", "Certo", "Errado"], key=f"q_{idx}", horizontal=True)
                         if resp != "Selecione":
-                            if resp == "Certo": st.success("✅ Correto! O item reflete o material.")
-                            else: st.error("❌ Errado. Segundo o material, a afirmação é verdadeira.")
+                            if resp == "Certo": st.success("✅ Correto conforme o material!")
+                            else: st.error("❌ Errado. De acordo com o texto, a afirmação está correta.")
                 else:
-                    st.warning("Conteúdo insuficiente para gerar simulado robusto.")
+                    st.warning("Conteúdo insuficiente para gerar o simulado.")
 
     st.markdown("<hr><p style='text-align: center; color: gray;'>Dúvidas: sugestoes@cursosduo.com.br</p>", unsafe_allow_html=True)
 
