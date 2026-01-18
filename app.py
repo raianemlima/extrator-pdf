@@ -245,6 +245,37 @@ def analisar_conteudo_juridico(texto: str) -> Dict[str, any]:
         analise["tipo_conteudo"] = "Prático"
     
     return analise
+
+
+def limpar_texto_total(texto: str) -> str:
+    """
+    Limpa e normaliza o texto extraído do PDF.
+    
+    Args:
+        texto: Texto bruto extraído
+        
+    Returns:
+        Texto limpo e normalizado
+    """
+    if not texto:
+        return ""
+    
+    # Remove números de rodapé colados
+    texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚçÇ]{3,})(\d+)', r'\1', texto)
+    texto = re.sub(r'(\.)(\d+)', r'\1', texto)
+    
+    # Mapeamento de caracteres especiais
+    mapa_sinais = {
+        '\u2013': '-', '\u2014': '-', '\u201c': '"', '\u201d': '"',
+        '\u2018': "'", '\u2019': "'", '\u2022': '•', '\uf0b7': '•',
+        '\uf02d': '-', '\uf0d8': '>', '\u2026': '...', '\u00a0': ' ',
+        '? ': '- '
+    }
+    
+    for original, substituto in mapa_sinais.items():
+        texto = texto.replace(original, substituto)
+    
+    return " ".join(texto.split())
     """
     Limpa e normaliza o texto extraído do PDF.
     
