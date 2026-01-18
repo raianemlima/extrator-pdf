@@ -2,701 +2,164 @@ import streamlit as st
 import fitz  # PyMuPDF
 from fpdf import FPDF
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
+from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from datetime import date, datetime
+from datetime import date
 import io
 import random
 import re
-from typing import List, Dict, Tuple
-from collections import Counter
 
-# Constantes - Identidade Visual Cursos Duo
-COR_VERDE_DUO_RGB = (166, 201, 138)
-COR_VERDE_DUO_HEX = "#A6C98A"
-COR_VERDE_ESCURO = "#7A9B6E"
-COR_VERDE_CLARO = "#D4E7C5"
-COR_TEXTO_ESCURO = "#2C3E50"
-COR_FUNDO_CLARO = "#F8FCF8"
+# Identidade Visual Cursos Duo
+COR_VERDE_DUO_RGB = (166, 201, 138) 
 
-# Configuração da página
-st.set_page_config(
-    page_title="Resumo Inteligente - Duo",
-    page_icon="🎓",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
-
-# CSS customizado avançado - Identidade Visual Profissional
-st.markdown(f"""
-    <style>
-    /* Fonte e cores base */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    html, body, [class*="css"] {{
-        font-family: 'Inter', sans-serif;
-        color: {COR_TEXTO_ESCURO};
-    }}
-    
-    /* Container principal */
-    .main {{
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f8fcf8 100%);
-    }}
-    
-    /* Cards customizados */
-    .card-duo {{
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 4px solid {COR_VERDE_DUO_HEX};
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin: 1rem 0;
-        transition: transform 0.2s;
-    }}
-    
-    .card-duo:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }}
-    
-    /* Badges e tags */
-    .badge-duo {{
-        background: {COR_VERDE_CLARO};
-        color: {COR_VERDE_ESCURO};
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        display: inline-block;
-        margin: 0.2rem;
-    }}
-    
-    /* Botões customizados */
-    .stDownloadButton > button {{
-        background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%);
-        color: white;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s;
-    }}
-    
-    .stDownloadButton > button:hover {{
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(166, 201, 138, 0.4);
-    }}
-    
-    /* Responsividade */
-    @media (max-width: 768px) {{
-        .main {{padding: 0.5rem;}}
-        .card-duo {{padding: 1rem;}}
-    }}
-    
-    /* Animações */
-    @keyframes slideIn {{
-        from {{
-            opacity: 0;
-            transform: translateY(20px);
-        }}
-        to {{
-            opacity: 1;
-            transform: translateY(0);
-        }}
-    }}
-    
-    .animated-content {{
-        animation: slideIn 0.5s ease-out;
-    }}
-    </style>
-""", unsafe_allow_html=True)
-
-
-def analisar_conteudo_juridico(texto: str) -> Dict[str, any]:
-    """Análise inteligente de conteúdo jurídico."""
-    analise = {
-        "tema_principal": None,
-        "artigos_citados": [],
-        "jurisprudencia": [],
-        "palavras_chave": [],
-        "nivel_complexidade": "Média",
-        "tipo_conteudo": "Conceitual"
-    }
-    
-    # Identificação de artigos
-    artigos = re.findall(r'art\.?\s*(\d+[A-Z]?(?:-[A-Z])?)', texto, re.IGNORECASE)
-    artigos += re.findall(r'artigo\s*(\d+)', texto, re.IGNORECASE)
-    analise["artigos_citados"] = list(set(artigos))
-    
-    # Identificação de jurisprudência
-    if any(word in texto.upper() for word in ['STF', 'STJ', 'TST', 'TSE']):
-        analise["jurisprudencia"].append("Tribunais Superiores")
-    if 'SÚMULA' in texto.upper() or 'SUMULA' in texto.upper():
-        sumulas = re.findall(r'[SsúÚ]umula\s*(\d+)', texto)
-        analise["jurisprudencia"].extend([f"Súmula {s}" for s in sumulas])
-    
-    # Identificação de temas
-    temas_mapa = {
-        "CPI": ["cpi", "comissão parlamentar", "inquérito"],
-        "Imunidades": ["imunidade", "inviolabilidade", "prerrogativa"],
-        "Processo Legislativo": ["processo legislativo", "emenda", "lei complementar"],
-        "Poder Executivo": ["presidente", "vice-presidente", "ministro"],
-        "Crime de Responsabilidade": ["impeachment", "crime de responsabilidade"],
-        "Garantias Parlamentares": ["parlamentar", "deputado", "senador"],
-    }
-    
-    texto_lower = texto.lower()
-    for tema, palavras in temas_mapa.items():
-        if any(palavra in texto_lower for palavra in palavras):
-            analise["tema_principal"] = tema
-            break
-    
-    # Análise de complexidade
-    complexidade_alta = sum([
-        len(analise["artigos_citados"]) > 3,
-        len(analise["jurisprudencia"]) > 0,
-        len(texto.split()) > 100,
-    ])
-    
-    if complexidade_alta >= 3:
-        analise["nivel_complexidade"] = "Alta"
-    elif complexidade_alta >= 1:
-        analise["nivel_complexidade"] = "Média"
-    else:
-        analise["nivel_complexidade"] = "Básica"
-    
-    # Tipo de conteúdo
-    if analise["jurisprudencia"]:
-        analise["tipo_conteudo"] = "Jurisprudencial"
-    elif analise["artigos_citados"]:
-        analise["tipo_conteudo"] = "Normativo"
-    
-    return analise
-
-
-def limpar_texto_total(texto: str) -> str:
-    """Limpa e normaliza o texto extraído do PDF."""
-    if not texto:
-        return ""
-    
-    # Remove números de rodapé
+def limpar_texto_total(texto):
+    """Garante extração fiel de símbolos e remove números de rodapé colados"""
+    # Remove números de rodapé (ex: Federal5 -> Federal) sem quebrar Art. 5
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚçÇ]{3,})(\d+)', r'\1', texto)
     texto = re.sub(r'(\.)(\d+)', r'\1', texto)
     
-    # Mapeamento de caracteres especiais
+    # Mapeamento para símbolos compatíveis e extração de %$()_*
     mapa_sinais = {
         '\u2013': '-', '\u2014': '-', '\u201c': '"', '\u201d': '"',
         '\u2018': "'", '\u2019': "'", '\u2022': '•', '\uf0b7': '•',
         '\uf02d': '-', '\uf0d8': '>', '\u2026': '...', '\u00a0': ' ',
-        '? ': '- '
+        '? ': '- ' # Correção para marcadores de lista
     }
-    
     for original, substituto in mapa_sinais.items():
         texto = texto.replace(original, substituto)
-    
     return " ".join(texto.split())
 
+def gerar_pergunta_contextualizada(texto):
+    """Gera perguntas diretas baseadas no conteúdo real do destaque"""
+    t = texto.lower()
+    if "cpi" in t: return "Como o texto define a natureza da CPI e seus requisitos de criação?"
+    if "parlamentar" in t: return "O que o material explica sobre imunidades e o marco da diplomação?"
+    if "stf" in t or "stj" in t: return "Qual o entendimento atualizado dos Tribunais sobre este ponto?"
+    if "labelling" in t: return "Discorra sobre a Teoria do Etiquetamento e as propostas citadas."
+    
+    # Fallback contextual
+    tema = " ".join(texto.split()[:5]).strip(".,;:- ")
+    return f"Explique o ponto central sobre '{tema}' conforme abordado no material."
 
-def gerar_pergunta_contextualizada(texto: str, analise: Dict = None) -> str:
-    """Gera pergunta inteligente baseada no conteúdo."""
-    if not analise:
-        analise = analisar_conteudo_juridico(texto)
-    
-    perguntas_tematicas = {
-        "CPI": "Quais são os requisitos constitucionais para criação de uma CPI?",
-        "Imunidades": "Diferencie imunidade material de imunidade formal dos parlamentares.",
-        "Processo Legislativo": "Explique as fases do processo legislativo ordinário.",
-        "Crime de Responsabilidade": "Explique o procedimento bifásico do impeachment presidencial.",
-    }
-    
-    if analise["tema_principal"] and analise["tema_principal"] in perguntas_tematicas:
-        return perguntas_tematicas[analise["tema_principal"]]
-    
-    if analise["artigos_citados"]:
-        artigo = analise["artigos_citados"][0]
-        return f"Qual a importância do art. {artigo} e como ele se aplica ao tema estudado?"
-    
-    return "Explique os aspectos fundamentais apresentados no material."
+# Configuração Responsiva para Celular/Tablet
+st.set_page_config(page_title="Resumo Inteligente - Duo", page_icon="🎓", layout="centered")
 
+# CSS para interface Profissional
+st.markdown(f"""
+    <style>
+    .stApp {{ background-color: #fcfcfc; }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: #f1f1f1; border-radius: 5px; padding: 10px;
+    }}
+    .stTabs [aria-selected="true"] {{ background-color: rgb{COR_VERDE_DUO_RGB} !important; color: white !important; }}
+    </style>
+""", unsafe_allow_html=True)
 
-def extrair_destaques(pdf_file) -> Tuple[List[Dict[str, any]], str]:
-    """
-    Extrai destaques do PDF com análise inteligente E o texto completo.
-    
-    Returns:
-        Tuple: (lista de destaques, texto completo do PDF)
-    """
-    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-    highlights = []
-    texto_completo = ""
-    
-    for page_num, page in enumerate(doc):
-        # Extrair texto completo da página
-        texto_completo += page.get_text() + "\n"
-        
-        # Extrair destaques
-        for annot in page.annots():
-            if annot.type[0] == 8:
-                texto_extraido = page.get_textbox(annot.rect)
-                texto_limpo = limpar_texto_total(texto_extraido)
-                
-                if texto_limpo:
-                    analise = analisar_conteudo_juridico(texto_limpo)
-                    
+# Banner de Identidade Visual
+st.markdown(f"""
+    <div style="background-color: rgb{COR_VERDE_DUO_RGB}; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <h1 style="color: white; margin: 0; font-family: sans-serif; letter-spacing: 2px; font-size: 2em;">RESUMO INTELIGENTE</h1>
+        <p style="color: white; margin: 5px 0 0 0; font-weight: bold; font-size: 1.2em;">Cursos Duo</p>
+    </div>
+    <br>
+""", unsafe_allow_html=True)
+
+uploaded_file = st.file_uploader("📂 Suba o PDF do curso", type="pdf")
+nome_modulo = st.text_input("📍 Nome do Módulo", value="Material de Revisão")
+
+if uploaded_file is not None:
+    try:
+        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        highlights = []
+        for page_num, page in enumerate(doc):
+            for annot in page.annots():
+                if annot.type[0] == 8:
                     highlights.append({
                         "pag": page_num + 1,
-                        "texto": texto_limpo,
-                        "analise": analise,
-                        "timestamp": datetime.now()
+                        "texto": limpar_texto_total(page.get_textbox(annot.rect))
                     })
-    
-    return highlights, texto_completo
 
+        if highlights:
+            st.success(f"**{len(highlights)}** pontos estratégicos processados.")
+            tab1, tab2, tab3 = st.tabs(["📄 Downloads", "🗂️ Flashcards & P&R", "🧠 Simulado C/E"])
 
-def gerar_estatisticas(highlights: List[Dict]) -> Dict:
-    """Gera estatísticas sobre o material."""
-    if not highlights:
-        return {}
-    
-    stats = {
-        "total_itens": len(highlights),
-        "temas": Counter(),
-        "complexidade": Counter(),
-        "tipos_conteudo": Counter(),
-        "artigos_mais_citados": Counter(),
-    }
-    
-    for h in highlights:
-        if "analise" in h:
-            analise = h["analise"]
-            
-            if analise["tema_principal"]:
-                stats["temas"][analise["tema_principal"]] += 1
-            
-            stats["complexidade"][analise["nivel_complexidade"]] += 1
-            stats["tipos_conteudo"][analise["tipo_conteudo"]] += 1
-            
-            for artigo in analise["artigos_citados"]:
-                stats["artigos_mais_citados"][artigo] += 1
-    
-    return stats
-
-
-def criar_pdf_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
-    """Cria PDF do resumo."""
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Cabeçalho
-    pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-    pdf.rect(0, 0, 210, 45, 'F')
-    pdf.set_font("Helvetica", "B", 18)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 15, "RESUMO INTELIGENTE", ln=True, align='C')
-    pdf.set_font("Helvetica", size=11)
-    pdf.cell(0, 8, nome_modulo.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
-    pdf.ln(25)
-    
-    # Conteúdo
-    for i, h in enumerate(highlights, 1):
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(*COR_VERDE_DUO_RGB)
-        pdf.cell(0, 8, f"ITEM {i:02d} | PAG. {h['pag']}", ln=True)
-        
-        pdf.set_font("Helvetica", size=12)
-        pdf.set_text_color(0, 0, 0)
-        txt_pdf = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(190, 7, txt_pdf, align='J')
-        pdf.ln(4)
-    
-    return bytes(pdf.output())
-
-
-def criar_word_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
-    """Cria documento Word."""
-    doc = Document()
-    
-    # Título
-    h_titulo = doc.add_heading(level=0)
-    run_titulo = h_titulo.add_run("RESUMO INTELIGENTE")
-    run_titulo.font.color.rgb = RGBColor(*COR_VERDE_DUO_RGB)
-    
-    p_modulo = doc.add_paragraph()
-    run_modulo = p_modulo.add_run(nome_modulo)
-    run_modulo.bold = True
-    
-    # Conteúdo
-    for i, h in enumerate(highlights, 1):
-        p = doc.add_paragraph()
-        
-        rt = p.add_run(f"ITEM {i:02d} | PÁGINA {h['pag']}\n")
-        rt.bold = True
-        rt.font.color.rgb = RGBColor(*COR_VERDE_DUO_RGB)
-        
-        rtx = p.add_run(h['texto'])
-        rtx.font.name = 'Arial'
-        rtx.font.size = Pt(12)
-        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
-
-
-def criar_pdf_perguntas(highlights: List[Dict], texto_completo: str = None) -> bytes:
-    """
-    Cria PDF com perguntas e respostas.
-    Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
-    Senão, usa apenas os destaques.
-    """
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    
-    # Se há texto completo, divide em seções relevantes
-    if texto_completo:
-        # Divide o texto em parágrafos significativos (mais de 100 caracteres)
-        paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
-        
-        # Limita a um número razoável de questões (máximo 50)
-        paragrafos = paragrafos[:50]
-        
-        for i, paragrafo in enumerate(paragrafos, 1):
-            texto_limpo = limpar_texto_total(paragrafo)
-            analise = analisar_conteudo_juridico(texto_limpo)
-            
-            # Cabeçalho
-            pdf.set_fill_color(248, 252, 248)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(60, 90, 60)
-            
-            header = f"  QUESTAO {i:02d}"
-            if analise.get("tema_principal"):
-                header += f" - {analise['tema_principal']}"
-            
-            pdf.cell(190, 8, header.encode('latin-1', 'replace').decode('latin-1'), 
-                    ln=True, fill=True, border='B')
-            
-            pdf.ln(2)
-            
-            # Pergunta
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(0, 0, 0)
-            pergunta = gerar_pergunta_contextualizada(texto_limpo, analise)
-            pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}".encode('latin-1', 'replace').decode('latin-1'), align='L')
-            
-            pdf.ln(1)
-            
-            # Resposta
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.set_text_color(*COR_VERDE_DUO_RGB)
-            pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
-            
-            pdf.set_font("Helvetica", size=10)
-            pdf.set_text_color(20, 20, 20)
-            txt_pr = texto_limpo[:500].encode('latin-1', 'replace').decode('latin-1')  # Limita tamanho
-            pdf.set_draw_color(*COR_VERDE_DUO_RGB)
-            pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
-            pdf.ln(6)
-    else:
-        # Usa apenas os destaques (comportamento original)
-        for i, h in enumerate(highlights, 1):
-            analise = h.get("analise", {})
-            
-            # Cabeçalho
-            pdf.set_fill_color(248, 252, 248)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(60, 90, 60)
-            
-            header = f"  QUESTAO {i:02d} (Pag. {h['pag']})"
-            if analise.get("tema_principal"):
-                header += f" - {analise['tema_principal']}"
-            
-            pdf.cell(190, 8, header.encode('latin-1', 'replace').decode('latin-1'), 
-                    ln=True, fill=True, border='B')
-            
-            pdf.ln(2)
-            
-            # Pergunta
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(0, 0, 0)
-            pergunta = gerar_pergunta_contextualizada(h['texto'], analise)
-            pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}".encode('latin-1', 'replace').decode('latin-1'), align='L')
-            
-            pdf.ln(1)
-            
-            # Resposta
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.set_text_color(*COR_VERDE_DUO_RGB)
-            pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
-            
-            pdf.set_font("Helvetica", size=10)
-            pdf.set_text_color(20, 20, 20)
-            txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.set_draw_color(*COR_VERDE_DUO_RGB)
-            pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
-            pdf.ln(6)
-    
-    return bytes(pdf.output())
-
-
-def criar_pdf_flashcards(highlights: List[Dict], texto_completo: str = None) -> bytes:
-    """
-    Cria PDF com flashcards.
-    Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
-    Senão, usa apenas os destaques.
-    """
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Se há texto completo, cria flashcards de todo o conteúdo
-    if texto_completo:
-        # Divide em parágrafos significativos
-        paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
-        paragrafos = paragrafos[:50]  # Limita quantidade
-        
-        for i, paragrafo in enumerate(paragrafos, 1):
-            texto_limpo = limpar_texto_total(paragrafo)
-            
-            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(190, 8, f" CARTAO {i:02d}", border=1, ln=True, fill=True)
-            
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Helvetica", size=11)
-            txt_f = texto_limpo[:400].encode('latin-1', 'replace').decode('latin-1')  # Limita tamanho
-            pdf.multi_cell(190, 8, txt_f, border=1, align='J')
-            pdf.ln(5)
-    else:
-        # Usa apenas destaques (comportamento original)
-        for i, h in enumerate(highlights, 1):
-            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(190, 8, f" CARTAO {i:02d} | PAGINA {h['pag']}", border=1, ln=True, fill=True)
-            
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Helvetica", size=11)
-            txt_f = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(190, 8, txt_f, border=1, align='J')
-            pdf.ln(5)
-    
-    return bytes(pdf.output())
-
-
-def renderizar_cabecalho():
-    """Renderiza o cabeçalho."""
-    st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%); 
-                    padding: 2rem 1.5rem; border-radius: 15px; text-align: center; 
-                    margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <h1 style="color: white; margin: 0; font-family: 'Inter', sans-serif; 
-                       font-size: 2.2rem; font-weight: 700; letter-spacing: -0.5px;">
-                RESUMO INTELIGENTE
-            </h1>
-            <p style="color: rgba(255,255,255,0.95); margin: 0.8rem 0 0 0; 
-                      font-weight: 600; font-size: 1.1rem;">
-                Cursos Duo
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-
-
-def renderizar_rodape():
-    """Renderiza o rodapé."""
-    st.markdown("""
-        <hr>
-        <p style='text-align: center; color: gray; font-size: 0.8em;'>
-            Dúvidas: sugestoes@cursosduo.com.br
-        </p>
-    """, unsafe_allow_html=True)
-
-
-def main():
-    """Função principal."""
-    renderizar_cabecalho()
-    
-    # Upload e configuração
-    uploaded_file = st.file_uploader("Suba o material do Cursos Duo (PDF)", type="pdf")
-    nome_modulo = st.text_input("Identificação do Material", value="Revisão Ponto 6")
-    
-    if uploaded_file is None:
-        st.info("👆 Faça upload de um PDF com destaques (highlights) para começar.")
-        return
-    
-    try:
-        # Extração de destaques E texto completo
-        with st.spinner("Extraindo destaques do PDF..."):
-            highlights, texto_completo = extrair_destaques(uploaded_file)
-        
-        if not highlights:
-            st.warning("⚠️ Nenhum destaque encontrado. Marque os trechos importantes.")
-            return
-        
-        st.success(f"✅ {len(highlights)} pontos de estudo identificados.")
-        
-        # Abas
-        tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
-        
-        with tab1:
-            st.subheader("📄 Resumo Estruturado")
-            
-            # Filtros
-            stats = gerar_estatisticas(highlights)
-            col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
-            
-            with col_filtro1:
-                temas_disponiveis = ["Todos"] + [t for t, _ in stats['temas'].most_common()]
-                tema_filtro = st.selectbox("🎯 Filtrar por Tema", temas_disponiveis)
-            
-            with col_filtro2:
-                niveis = ["Todos", "Alta", "Média", "Básica"]
-                nivel_filtro = st.selectbox("📊 Nível", niveis)
-            
-            with col_filtro3:
-                ordem = st.selectbox("🔢 Ordenar", ["Página", "Complexidade", "Tamanho"])
-            
-            # Aplicar filtros
-            highlights_filtrados = highlights.copy()
-            
-            if tema_filtro != "Todos":
-                highlights_filtrados = [h for h in highlights_filtrados 
-                                       if h.get("analise", {}).get("tema_principal") == tema_filtro]
-            
-            if nivel_filtro != "Todos":
-                highlights_filtrados = [h for h in highlights_filtrados 
-                                       if h.get("analise", {}).get("nivel_complexidade") == nivel_filtro]
-            
-            # Ordenação
-            if ordem == "Complexidade":
-                ordem_complexidade = {"Alta": 3, "Média": 2, "Básica": 1}
-                highlights_filtrados.sort(
-                    key=lambda x: ordem_complexidade.get(
-                        x.get("analise", {}).get("nivel_complexidade", "Média"), 2
-                    ), reverse=True
-                )
-            elif ordem == "Tamanho":
-                highlights_filtrados.sort(key=lambda x: len(x["texto"]), reverse=True)
-            
-            st.info(f"📌 Exibindo {len(highlights_filtrados)} de {len(highlights)} itens")
-            
-            # Prévia
-            with st.expander("👁️ Visualizar prévia", expanded=False):
-                for i, h in enumerate(highlights_filtrados[:5], 1):
-                    st.markdown(f"**Item {i:02d} | Página {h['pag']}**")
-                    st.write(h['texto'][:200] + "..." if len(h['texto']) > 200 else h['texto'])
-                    st.divider()
-                if len(highlights_filtrados) > 5:
-                    st.caption(f"...e mais {len(highlights_filtrados) - 5} itens")
-            
-            # Downloads
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                pdf_resumo = criar_pdf_resumo(highlights_filtrados, nome_modulo)
-                st.download_button(
-                    "📥 Baixar PDF",
-                    pdf_resumo,
-                    f"Resumo_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
-                )
-            
-            with col2:
-                word_resumo = criar_word_resumo(highlights_filtrados, nome_modulo)
-                st.download_button(
-                    "📥 Baixar Word",
-                    word_resumo,
-                    f"Resumo_{nome_modulo.replace(' ', '_')}.docx",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
-        
-        with tab2:
-            st.subheader("🗂️ Material de Revisão")
-            
-            st.info("💡 **Atenção:** Os flashcards e perguntas usam TODO o conteúdo do PDF, não apenas os destaques!")
-            
-            col_x, col_y = st.columns(2)
-            
-            with col_x:
-                pdf_perguntas = criar_pdf_perguntas(highlights, texto_completo)
-                st.download_button(
-                    "📝 Roteiro P&R (Todo Conteúdo)",
-                    pdf_perguntas,
-                    f"Roteiro_PR_Completo_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
-                )
-            
-            with col_y:
-                pdf_flashcards = criar_pdf_flashcards(highlights, texto_completo)
-                st.download_button(
-                    "✂️ Flashcards (Todo Conteúdo)",
-                    pdf_flashcards,
-                    f"Flashcards_Completo_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
-                )
-        
-        with tab3:
-            st.subheader("🧠 Simulado Certo ou Errado")
-            
-            st.info("💡 **Atenção:** O simulado usa TODO o conteúdo do PDF!")
-            
-            # Criar pool de questões do texto completo
-            paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
-            
-            if not paragrafos:
-                st.warning("⚠️ Não foi possível extrair conteúdo para o simulado.")
-                return
-            
-            num_questoes = min(len(paragrafos), 10)
-            
-            if 'simulado_atual' not in st.session_state or st.button("🔄 Novo Simulado"):
-                # Seleciona parágrafos aleatórios
-                paragrafos_selecionados = random.sample(paragrafos, num_questoes)
+            with tab1:
+                # Gerador PDF (Arial 12)
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+                pdf.rect(0, 0, 210, 45, 'F')
+                pdf.set_font("Helvetica", "B", 18); pdf.set_text_color(255, 255, 255)
+                pdf.cell(0, 15, "RESUMO INTELIGENTE", ln=True, align='C')
+                pdf.set_font("Helvetica", "B", 14); pdf.cell(0, 10, "Cursos Duo", ln=True, align='C')
+                pdf.ln(30); pdf.set_text_color(0,0,0)
                 
-                # Cria estrutura similar aos highlights
-                st.session_state.simulado_atual = [
-                    {
-                        'texto': limpar_texto_total(p),
-                        'pag': 'N/A'
-                    }
-                    for p in paragrafos_selecionados
-                ]
-                st.session_state.respostas_simulado = {}
-            
-            amostra = st.session_state.simulado_atual
-            
-            for idx, item in enumerate(amostra):
-                st.markdown(f"**Questão {idx+1} de {len(amostra)}**")
-                st.info(item['texto'][:300] + "..." if len(item['texto']) > 300 else item['texto'])
-                
-                resp = st.radio(
-                    "Sua avaliação:",
-                    ["Selecione", "Certo", "Errado"],
-                    key=f"qz_{idx}",
-                    horizontal=True
-                )
-                
-                if resp != "Selecione":
-                    if resp == "Certo":
-                        st.success("✅ Correto!")
-                    else:
-                        st.error("❌ Errado. A afirmação está correta segundo o material.")
-                
-                st.divider()
-        
-        renderizar_rodape()
-    
+                for i, h in enumerate(highlights, 1):
+                    pdf.set_font("Helvetica", "B", 11); pdf.set_text_color(*COR_VERDE_DUO_RGB)
+                    pdf.cell(0, 8, f"ITEM {i:02d} | PÁGINA {h['pag']}", ln=True)
+                    pdf.set_font("Helvetica", size=12); pdf.set_text_color(0, 0, 0)
+                    txt = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(190, 7, txt, align='J')
+                    pdf.ln(4)
+
+                # Gerador Word (Título Verde + Arial 12)
+                word_doc = Document()
+                h_w = word_doc.add_heading(level=0)
+                r_h = h_w.add_run("RESUMO INTELIGENTE"); r_h.font.color.rgb = RGBColor(166, 201, 138)
+                word_doc.add_paragraph("Cursos Duo").bold = True
+                for i, h in enumerate(highlights, 1):
+                    p = word_doc.add_paragraph()
+                    rt = p.add_run(f"ITEM {i:02d} | PÁGINA {h['pag']}\n"); rt.bold = True; rt.font.color.rgb = RGBColor(166, 201, 138)
+                    rtx = p.add_run(h['texto']); rtx.font.name = 'Arial'; rtx.font.size = Pt(12); p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+                c1, c2 = st.columns(2)
+                with c1: st.download_button("📥 Baixar PDF", bytes(pdf.output()), "Resumo_Duo.pdf")
+                with c2:
+                    buf = io.BytesIO(); word_doc.save(buf)
+                    st.download_button("📥 Baixar Word", buf.getvalue(), "Resumo_Duo.docx")
+
+            with tab2:
+                # Roteiro P&R Adaptado
+                pr_pdf = FPDF()
+                pr_pdf.set_auto_page_break(auto=True, margin=15)
+                pr_pdf.add_page()
+                for i, h in enumerate(highlights, 1):
+                    pr_pdf.set_fill_color(248, 252, 248)
+                    pr_pdf.set_font("Helvetica", "B", 10); pr_pdf.set_text_color(60, 90, 60)
+                    pr_pdf.cell(190, 8, f"  QUESTÃO {i:02d} (Pág. {h['pag']})", ln=True, fill=True, border='B')
+                    pr_pdf.set_font("Helvetica", "B", 10); pr_pdf.set_text_color(0, 0, 0)
+                    pr_pdf.multi_cell(190, 6, f"PERGUNTA: {gerar_pergunta_contextualizada(h['texto'])}", align='L')
+                    pr_pdf.set_font("Helvetica", size=10); txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                    pr_pdf.set_draw_color(*COR_VERDE_DUO_RGB)
+                    pr_pdf.multi_cell(190, 5, f"RESPOSTA: {txt_pr}", align='J', border='L')
+                    pr_pdf.ln(5)
+
+                # Flashcards para Recorte (Grade)
+                f_pdf = FPDF()
+                f_pdf.add_page()
+                for i, h in enumerate(highlights, 1):
+                    f_pdf.set_fill_color(*COR_VERDE_DUO_RGB); f_pdf.set_text_color(255, 255, 255)
+                    f_pdf.set_font("Helvetica", "B", 10)
+                    f_pdf.cell(190, 8, f" FLASHCARD {i:02d} | PÁGINA {h['pag']}", border=1, ln=True, fill=True)
+                    f_pdf.set_text_color(0, 0, 0); f_pdf.set_font("Helvetica", size=11)
+                    txt_f = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+                    f_pdf.multi_cell(190, 8, txt_f, border=1, align='J')
+                    f_pdf.ln(6)
+
+                st.download_button("📝 Baixar Roteiro P&R", bytes(pr_pdf.output()), "Roteiro_PR_Duo.pdf")
+                st.download_button("✂️ Baixar Flashcards (Recorte)", bytes(f_pdf.output()), "Flashcards_Duo.pdf")
+
+            with tab3:
+                st.subheader("🧠 Simulado Certo ou Errado")
+                ponto = random.choice(highlights)
+                st.info(f"**Item de Prova:** {ponto['texto']}")
+                escolha = st.radio("Sua avaliação:", ["Selecione", "Certo", "Errado"], key="simu")
+                if escolha != "Selecione":
+                    if escolha == "Certo": st.success("✅ Correto! O item reflete o material original.")
+                    else: st.error("❌ Incorreto. A afirmação está de acordo com o texto estudado.")
+
+        st.markdown(f"<hr><p style='text-align: center; color: gray;'>Dúvidas: sugestoes@cursosduo.com.br</p>", unsafe_allow_html=True)
+
     except Exception as e:
-        st.error(f"❌ Erro no processamento: {str(e)}")
-        st.exception(e)
-
-
-if __name__ == "__main__":
-    main()
+        st.error(f"Erro: {e}")
