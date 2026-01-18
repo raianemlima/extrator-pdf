@@ -21,7 +21,8 @@ def limpar_texto_total(texto):
         '\u2026': '...', # Reticências
         '\u00a0': ' ', # Espaço não quebrável
         '\u2010': '-', '\u2011': '-', # Hífens especiais
-        '\u00ba': 'º', '\u00aa': 'ª' # Símbolos de ordem
+        '\u00ba': 'º', '\u00aa': 'ª', # Símbolos de ordem
+        '\uf0d8': '>' # Seta comum em listas
     }
     for original, substituto in mapa_sinais.items():
         texto = texto.replace(original, substituto)
@@ -55,7 +56,7 @@ if uploaded_file is not None:
                         highlights.append({"pag": page_num + 1, "texto": limpar_texto_total(text)})
 
         if highlights:
-            st.success(f"Analizado com sucesso! {len(highlights)} destaques prontos.")
+            st.success(f"Analisado com sucesso! {len(highlights)} destaques prontos.")
             tab1, tab2, tab3 = st.tabs(["📄 Downloads", "🗂️ Estudo Ativo (Flashcards/P&R)", "🧠 Desafio de Memória"])
 
             # --- TAB 1: DOWNLOADS RESUMO ---
@@ -87,10 +88,19 @@ if uploaded_file is not None:
                     pdf.multi_cell(0, 7, txt_pdf, align='J')
                     pdf.ln(4)
                 
-                # WORD FORMATO ARIAL 12
+                # WORD FORMATO ARIAL 12 COM TÍTULO VERDE
                 word_doc = Document()
-                word_doc.add_heading("RESUMO INTELIGENTE", 0)
-                word_doc.add_paragraph("Cursos Duo").bold = True
+                # Cria o cabeçalho e aplica a cor verde específica
+                heading = word_doc.add_heading(level=0)
+                run_heading = heading.add_run("RESUMO INTELIGENTE")
+                run_heading.font.color.rgb = RGBColor(166, 201, 138) # Aplica o Verde Duo
+
+                # Subtítulo Cursos Duo
+                para_sub = word_doc.add_paragraph()
+                run_sub = para_sub.add_run("Cursos Duo")
+                run_sub.bold = True
+                run_sub.font.size = Pt(14)
+                
                 word_doc.add_paragraph(f"Material: {nome_modulo} | Data: {date.today().strftime('%d/%m/%Y')}")
 
                 for i, h in enumerate(highlights, 1):
