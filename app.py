@@ -1,23 +1,19 @@
+
 import streamlit as st
 import fitz  # PyMuPDF
 from fpdf import FPDF
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
+from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from datetime import date, datetime
+from datetime import date
 import io
 import random
 import re
-from typing import List, Dict, Tuple
-from collections import Counter
+from typing import List, Dict
 
-# Constantes - Identidade Visual Cursos Duo
+# Constantes
 COR_VERDE_DUO_RGB = (166, 201, 138)
 COR_VERDE_DUO_HEX = "#A6C98A"
-COR_VERDE_ESCURO = "#7A9B6E"
-COR_VERDE_CLARO = "#D4E7C5"
-COR_TEXTO_ESCURO = "#2C3E50"
-COR_FUNDO_CLARO = "#F8FCF8"
 
 # Configuração da página
 st.set_page_config(
@@ -27,160 +23,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS customizado avançado - Identidade Visual Profissional
-st.markdown(f"""
+# CSS customizado para melhor responsividade
+st.markdown("""
     <style>
-    /* Fonte e cores base */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    html, body, [class*="css"] {{
-        font-family: 'Inter', sans-serif;
-        color: {COR_TEXTO_ESCURO};
-    }}
-    
-    /* Container principal */
-    .main {{
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f8fcf8 100%);
-    }}
-    
-    /* Cards customizados */
-    .card-duo {{
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 4px solid {COR_VERDE_DUO_HEX};
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin: 1rem 0;
-        transition: transform 0.2s;
-    }}
-    
-    .card-duo:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }}
-    
-    /* Badges e tags */
-    .badge-duo {{
-        background: {COR_VERDE_CLARO};
-        color: {COR_VERDE_ESCURO};
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        display: inline-block;
-        margin: 0.2rem;
-    }}
-    
-    /* Botões customizados */
-    .stDownloadButton > button {{
-        background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%);
-        color: white;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s;
-    }}
-    
-    .stDownloadButton > button:hover {{
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(166, 201, 138, 0.4);
-    }}
-    
-    /* Responsividade */
-    @media (max-width: 768px) {{
-        .main {{padding: 0.5rem;}}
-        .card-duo {{padding: 1rem;}}
-    }}
-    
-    /* Animações */
-    @keyframes slideIn {{
-        from {{
-            opacity: 0;
-            transform: translateY(20px);
-        }}
-        to {{
-            opacity: 1;
-            transform: translateY(0);
-        }}
-    }}
-    
-    .animated-content {{
-        animation: slideIn 0.5s ease-out;
-    }}
+    .main {padding: 1rem;}
+    @media (max-width: 768px) {
+        .main {padding: 0.5rem;}
+    }
     </style>
 """, unsafe_allow_html=True)
 
 
-def analisar_conteudo_juridico(texto: str) -> Dict[str, any]:
-    """Análise inteligente de conteúdo jurídico."""
-    analise = {
-        "tema_principal": None,
-        "artigos_citados": [],
-        "jurisprudencia": [],
-        "palavras_chave": [],
-        "nivel_complexidade": "Média",
-        "tipo_conteudo": "Conceitual"
-    }
-    
-    # Identificação de artigos
-    artigos = re.findall(r'art\.?\s*(\d+[A-Z]?(?:-[A-Z])?)', texto, re.IGNORECASE)
-    artigos += re.findall(r'artigo\s*(\d+)', texto, re.IGNORECASE)
-    analise["artigos_citados"] = list(set(artigos))
-    
-    # Identificação de jurisprudência
-    if any(word in texto.upper() for word in ['STF', 'STJ', 'TST', 'TSE']):
-        analise["jurisprudencia"].append("Tribunais Superiores")
-    if 'SÚMULA' in texto.upper() or 'SUMULA' in texto.upper():
-        sumulas = re.findall(r'[SsúÚ]umula\s*(\d+)', texto)
-        analise["jurisprudencia"].extend([f"Súmula {s}" for s in sumulas])
-    
-    # Identificação de temas
-    temas_mapa = {
-        "CPI": ["cpi", "comissão parlamentar", "inquérito"],
-        "Imunidades": ["imunidade", "inviolabilidade", "prerrogativa"],
-        "Processo Legislativo": ["processo legislativo", "emenda", "lei complementar"],
-        "Poder Executivo": ["presidente", "vice-presidente", "ministro"],
-        "Crime de Responsabilidade": ["impeachment", "crime de responsabilidade"],
-        "Garantias Parlamentares": ["parlamentar", "deputado", "senador"],
-    }
-    
-    texto_lower = texto.lower()
-    for tema, palavras in temas_mapa.items():
-        if any(palavra in texto_lower for palavra in palavras):
-            analise["tema_principal"] = tema
-            break
-    
-    # Análise de complexidade
-    complexidade_alta = sum([
-        len(analise["artigos_citados"]) > 3,
-        len(analise["jurisprudencia"]) > 0,
-        len(texto.split()) > 100,
-    ])
-    
-    if complexidade_alta >= 3:
-        analise["nivel_complexidade"] = "Alta"
-    elif complexidade_alta >= 1:
-        analise["nivel_complexidade"] = "Média"
-    else:
-        analise["nivel_complexidade"] = "Básica"
-    
-    # Tipo de conteúdo
-    if analise["jurisprudencia"]:
-        analise["tipo_conteudo"] = "Jurisprudencial"
-    elif analise["artigos_citados"]:
-        analise["tipo_conteudo"] = "Normativo"
-    
-    return analise
-
-
 def limpar_texto_total(texto: str) -> str:
-    """Limpa e normaliza o texto extraído do PDF."""
+    """
+    Limpa e normaliza o texto extraído do PDF.
+    
+    Args:
+        texto: Texto bruto extraído
+        
+    Returns:
+        Texto limpo e normalizado
+    """
     if not texto:
         return ""
     
-    # Remove números de rodapé
+    # Remove números de rodapé colados
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚçÇ]{3,})(\d+)', r'\1', texto)
     texto = re.sub(r'(\.)(\d+)', r'\1', texto)
     
@@ -198,93 +65,67 @@ def limpar_texto_total(texto: str) -> str:
     return " ".join(texto.split())
 
 
-def gerar_pergunta_contextualizada(texto: str, analise: Dict = None) -> str:
-    """Gera pergunta inteligente baseada no conteúdo."""
-    if not analise:
-        analise = analisar_conteudo_juridico(texto)
+def gerar_pergunta_contextualizada(texto: str) -> str:
+    """
+    Gera pergunta baseada no conteúdo do destaque.
     
-    perguntas_tematicas = {
-        "CPI": "Quais são os requisitos constitucionais para criação de uma CPI?",
-        "Imunidades": "Diferencie imunidade material de imunidade formal dos parlamentares.",
-        "Processo Legislativo": "Explique as fases do processo legislativo ordinário.",
-        "Crime de Responsabilidade": "Explique o procedimento bifásico do impeachment presidencial.",
+    Args:
+        texto: Texto do destaque
+        
+    Returns:
+        Pergunta contextualizada
+    """
+    t = texto.lower()
+    
+    # Mapeamento temático
+    temas = {
+        "cpi": "Como o material define a natureza da CPI e quais são os seus requisitos de criação?",
+        "parlamentar|diplomação": "O que o texto explica sobre o início das garantias parlamentares e a imunidade?",
+        "labelling|etiquetamento": "Quais são os pontos centrais da Teoria do Etiquetamento e as propostas dos '4 Ds' citadas?",
+        "stf|stj": "Qual é o posicionamento atualizado dos Tribunais Superiores sobre este ponto do destaque?",
+        "improbidade|lia": "Quais as principais características do ato de improbidade e a exigência de dolo mencionada?"
     }
     
-    if analise["tema_principal"] and analise["tema_principal"] in perguntas_tematicas:
-        return perguntas_tematicas[analise["tema_principal"]]
+    for palavras_chave, pergunta in temas.items():
+        if any(palavra in t for palavra in palavras_chave.split("|")):
+            return pergunta
     
-    if analise["artigos_citados"]:
-        artigo = analise["artigos_citados"][0]
-        return f"Qual a importância do art. {artigo} e como ele se aplica ao tema estudado?"
-    
-    return "Explique os aspectos fundamentais apresentados no material."
+    # Fallback: pergunta genérica
+    palavras = texto.split()[:6]
+    tema = " ".join(palavras).strip(".,;:- ")
+    return f"Explique o que o material aborda sobre '{tema}' e qual sua importância no contexto estudado."
 
 
-def extrair_destaques(pdf_file) -> Tuple[List[Dict[str, any]], str]:
+def extrair_destaques(pdf_file) -> List[Dict[str, any]]:
     """
-    Extrai destaques do PDF com análise inteligente E o texto completo.
+    Extrai destaques (highlights) do PDF.
     
+    Args:
+        pdf_file: Arquivo PDF carregado
+        
     Returns:
-        Tuple: (lista de destaques, texto completo do PDF)
+        Lista de dicionários com página e texto
     """
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     highlights = []
-    texto_completo = ""
     
     for page_num, page in enumerate(doc):
-        # Extrair texto completo da página
-        texto_completo += page.get_text() + "\n"
-        
-        # Extrair destaques
         for annot in page.annots():
-            if annot.type[0] == 8:
+            if annot.type[0] == 8:  # Tipo 8 = Highlight
                 texto_extraido = page.get_textbox(annot.rect)
                 texto_limpo = limpar_texto_total(texto_extraido)
                 
-                if texto_limpo:
-                    analise = analisar_conteudo_juridico(texto_limpo)
-                    
+                if texto_limpo:  # Só adiciona se houver conteúdo
                     highlights.append({
                         "pag": page_num + 1,
-                        "texto": texto_limpo,
-                        "analise": analise,
-                        "timestamp": datetime.now()
+                        "texto": texto_limpo
                     })
     
-    return highlights, texto_completo
-
-
-def gerar_estatisticas(highlights: List[Dict]) -> Dict:
-    """Gera estatísticas sobre o material."""
-    if not highlights:
-        return {}
-    
-    stats = {
-        "total_itens": len(highlights),
-        "temas": Counter(),
-        "complexidade": Counter(),
-        "tipos_conteudo": Counter(),
-        "artigos_mais_citados": Counter(),
-    }
-    
-    for h in highlights:
-        if "analise" in h:
-            analise = h["analise"]
-            
-            if analise["tema_principal"]:
-                stats["temas"][analise["tema_principal"]] += 1
-            
-            stats["complexidade"][analise["nivel_complexidade"]] += 1
-            stats["tipos_conteudo"][analise["tipo_conteudo"]] += 1
-            
-            for artigo in analise["artigos_citados"]:
-                stats["artigos_mais_citados"][artigo] += 1
-    
-    return stats
+    return highlights
 
 
 def criar_pdf_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
-    """Cria PDF do resumo."""
+    """Cria PDF do resumo formatado."""
     pdf = FPDF()
     pdf.add_page()
     
@@ -295,14 +136,14 @@ def criar_pdf_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
     pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 15, "RESUMO INTELIGENTE", ln=True, align='C')
     pdf.set_font("Helvetica", size=11)
-    pdf.cell(0, 8, nome_modulo.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(0, 8, nome_modulo, ln=True, align='C')
     pdf.ln(25)
     
     # Conteúdo
     for i, h in enumerate(highlights, 1):
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*COR_VERDE_DUO_RGB)
-        pdf.cell(0, 8, f"ITEM {i:02d} | PAG. {h['pag']}", ln=True)
+        pdf.cell(0, 8, f"ITEM {i:02d} | PÁG. {h['pag']}", ln=True)
         
         pdf.set_font("Helvetica", size=12)
         pdf.set_text_color(0, 0, 0)
@@ -314,7 +155,7 @@ def criar_pdf_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
 
 
 def criar_word_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
-    """Cria documento Word."""
+    """Cria documento Word do resumo."""
     doc = Document()
     
     # Título
@@ -339,174 +180,84 @@ def criar_word_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
         rtx.font.size = Pt(12)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
+    # Salvar em buffer
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
 
 
-def criar_pdf_perguntas(highlights: List[Dict], texto_completo: str = None) -> bytes:
-    """
-    Cria PDF com perguntas e respostas.
-    Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
-    Senão, usa apenas os destaques.
-    """
+def criar_pdf_perguntas(highlights: List[Dict]) -> bytes:
+    """Cria PDF com roteiro de perguntas e respostas."""
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Se há texto completo, divide em seções relevantes
-    if texto_completo:
-        # Divide o texto em parágrafos significativos (mais de 100 caracteres)
-        paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
+    for i, h in enumerate(highlights, 1):
+        # Cabeçalho da questão
+        pdf.set_fill_color(248, 252, 248)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(60, 90, 60)
+        pdf.cell(190, 8, f"  QUESTÃO {i:02d} (Pág. {h['pag']})", ln=True, fill=True, border='B')
         
-        # Limita a um número razoável de questões (máximo 50)
-        paragrafos = paragrafos[:50]
+        # Pergunta
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(0, 0, 0)
+        pergunta = gerar_pergunta_contextualizada(h['texto'])
+        pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}", align='L')
         
-        for i, paragrafo in enumerate(paragrafos, 1):
-            texto_limpo = limpar_texto_total(paragrafo)
-            analise = analisar_conteudo_juridico(texto_limpo)
-            
-            # Cabeçalho
-            pdf.set_fill_color(248, 252, 248)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(60, 90, 60)
-            
-            header = f"  QUESTAO {i:02d}"
-            if analise.get("tema_principal"):
-                header += f" - {analise['tema_principal']}"
-            
-            pdf.cell(190, 8, header.encode('latin-1', 'replace').decode('latin-1'), 
-                    ln=True, fill=True, border='B')
-            
-            pdf.ln(2)
-            
-            # Pergunta
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(0, 0, 0)
-            pergunta = gerar_pergunta_contextualizada(texto_limpo, analise)
-            pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}".encode('latin-1', 'replace').decode('latin-1'), align='L')
-            
-            pdf.ln(1)
-            
-            # Resposta
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.set_text_color(*COR_VERDE_DUO_RGB)
-            pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
-            
-            pdf.set_font("Helvetica", size=10)
-            pdf.set_text_color(20, 20, 20)
-            txt_pr = texto_limpo[:500].encode('latin-1', 'replace').decode('latin-1')  # Limita tamanho
-            pdf.set_draw_color(*COR_VERDE_DUO_RGB)
-            pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
-            pdf.ln(6)
-    else:
-        # Usa apenas os destaques (comportamento original)
-        for i, h in enumerate(highlights, 1):
-            analise = h.get("analise", {})
-            
-            # Cabeçalho
-            pdf.set_fill_color(248, 252, 248)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(60, 90, 60)
-            
-            header = f"  QUESTAO {i:02d} (Pag. {h['pag']})"
-            if analise.get("tema_principal"):
-                header += f" - {analise['tema_principal']}"
-            
-            pdf.cell(190, 8, header.encode('latin-1', 'replace').decode('latin-1'), 
-                    ln=True, fill=True, border='B')
-            
-            pdf.ln(2)
-            
-            # Pergunta
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.set_text_color(0, 0, 0)
-            pergunta = gerar_pergunta_contextualizada(h['texto'], analise)
-            pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}".encode('latin-1', 'replace').decode('latin-1'), align='L')
-            
-            pdf.ln(1)
-            
-            # Resposta
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.set_text_color(*COR_VERDE_DUO_RGB)
-            pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
-            
-            pdf.set_font("Helvetica", size=10)
-            pdf.set_text_color(20, 20, 20)
-            txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.set_draw_color(*COR_VERDE_DUO_RGB)
-            pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
-            pdf.ln(6)
+        pdf.ln(1)
+        
+        # Resposta
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*COR_VERDE_DUO_RGB)
+        pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
+        
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(20, 20, 20)
+        txt_pr = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+        pdf.set_draw_color(*COR_VERDE_DUO_RGB)
+        pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
+        pdf.ln(6)
     
     return bytes(pdf.output())
 
 
-def criar_pdf_flashcards(highlights: List[Dict], texto_completo: str = None) -> bytes:
-    """
-    Cria PDF com flashcards.
-    Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
-    Senão, usa apenas os destaques.
-    """
+def criar_pdf_flashcards(highlights: List[Dict]) -> bytes:
+    """Cria PDF com flashcards para impressão."""
     pdf = FPDF()
     pdf.add_page()
     
-    # Se há texto completo, cria flashcards de todo o conteúdo
-    if texto_completo:
-        # Divide em parágrafos significativos
-        paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
-        paragrafos = paragrafos[:50]  # Limita quantidade
+    for i, h in enumerate(highlights, 1):
+        pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(190, 8, f" CARTÃO {i:02d} | PÁGINA {h['pag']}", border=1, ln=True, fill=True)
         
-        for i, paragrafo in enumerate(paragrafos, 1):
-            texto_limpo = limpar_texto_total(paragrafo)
-            
-            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(190, 8, f" CARTAO {i:02d}", border=1, ln=True, fill=True)
-            
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Helvetica", size=11)
-            txt_f = texto_limpo[:400].encode('latin-1', 'replace').decode('latin-1')  # Limita tamanho
-            pdf.multi_cell(190, 8, txt_f, border=1, align='J')
-            pdf.ln(5)
-    else:
-        # Usa apenas destaques (comportamento original)
-        for i, h in enumerate(highlights, 1):
-            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(190, 8, f" CARTAO {i:02d} | PAGINA {h['pag']}", border=1, ln=True, fill=True)
-            
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Helvetica", size=11)
-            txt_f = h['texto'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(190, 8, txt_f, border=1, align='J')
-            pdf.ln(5)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Helvetica", size=11)
+        txt_f = h['texto'].encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(190, 8, txt_f, border=1, align='J')
+        pdf.ln(5)
     
     return bytes(pdf.output())
 
 
 def renderizar_cabecalho():
-    """Renderiza o cabeçalho."""
+    """Renderiza o cabeçalho da aplicação."""
     st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%); 
-                    padding: 2rem 1.5rem; border-radius: 15px; text-align: center; 
-                    margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <h1 style="color: white; margin: 0; font-family: 'Inter', sans-serif; 
-                       font-size: 2.2rem; font-weight: 700; letter-spacing: -0.5px;">
+        <div style="background-color: {COR_VERDE_DUO_HEX}; padding: 25px; 
+                    border-radius: 15px; text-align: center; margin-bottom: 2rem;">
+            <h1 style="color: white; margin: 0; font-family: sans-serif; font-size: 1.8em;">
                 RESUMO INTELIGENTE
             </h1>
-            <p style="color: rgba(255,255,255,0.95); margin: 0.8rem 0 0 0; 
-                      font-weight: 600; font-size: 1.1rem;">
-                Cursos Duo
-            </p>
+            <p style="color: white; margin: 5px 0 0 0; font-weight: bold;">Cursos Duo</p>
         </div>
     """, unsafe_allow_html=True)
 
 
 def renderizar_rodape():
-    """Renderiza o rodapé."""
+    """Renderiza o rodapé da aplicação."""
     st.markdown("""
         <hr>
         <p style='text-align: center; color: gray; font-size: 0.8em;'>
@@ -515,8 +266,10 @@ def renderizar_rodape():
     """, unsafe_allow_html=True)
 
 
+# ==================== INTERFACE PRINCIPAL ====================
+
 def main():
-    """Função principal."""
+    """Função principal da aplicação."""
     renderizar_cabecalho()
     
     # Upload e configuração
@@ -528,135 +281,91 @@ def main():
         return
     
     try:
-        # Extração de destaques E texto completo
+        # Extração de destaques
         with st.spinner("Extraindo destaques do PDF..."):
-            highlights, texto_completo = extrair_destaques(uploaded_file)
+            highlights = extrair_destaques(uploaded_file)
         
         if not highlights:
-            st.warning("⚠️ Nenhum destaque encontrado. Marque os trechos importantes.")
+            st.warning("⚠️ Nenhum destaque (highlight) encontrado no PDF. Certifique-se de marcar os trechos importantes.")
             return
         
-        st.success(f"✅ {len(highlights)} pontos de estudo identificados.")
+        st.success(f"✅ Pronto! {len(highlights)} pontos de estudo identificados.")
         
-        # Abas
+        # Abas de conteúdo
         tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
         
         with tab1:
-            st.subheader("📄 Resumo Estruturado")
-            
-            # Filtros
-            stats = gerar_estatisticas(highlights)
-            col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
-            
-            with col_filtro1:
-                temas_disponiveis = ["Todos"] + [t for t, _ in stats['temas'].most_common()]
-                tema_filtro = st.selectbox("🎯 Filtrar por Tema", temas_disponiveis)
-            
-            with col_filtro2:
-                niveis = ["Todos", "Alta", "Média", "Básica"]
-                nivel_filtro = st.selectbox("📊 Nível", niveis)
-            
-            with col_filtro3:
-                ordem = st.selectbox("🔢 Ordenar", ["Página", "Complexidade", "Tamanho"])
-            
-            # Aplicar filtros
-            highlights_filtrados = highlights.copy()
-            
-            if tema_filtro != "Todos":
-                highlights_filtrados = [h for h in highlights_filtrados 
-                                       if h.get("analise", {}).get("tema_principal") == tema_filtro]
-            
-            if nivel_filtro != "Todos":
-                highlights_filtrados = [h for h in highlights_filtrados 
-                                       if h.get("analise", {}).get("nivel_complexidade") == nivel_filtro]
-            
-            # Ordenação
-            if ordem == "Complexidade":
-                ordem_complexidade = {"Alta": 3, "Média": 2, "Básica": 1}
-                highlights_filtrados.sort(
-                    key=lambda x: ordem_complexidade.get(
-                        x.get("analise", {}).get("nivel_complexidade", "Média"), 2
-                    ), reverse=True
-                )
-            elif ordem == "Tamanho":
-                highlights_filtrados.sort(key=lambda x: len(x["texto"]), reverse=True)
-            
-            st.info(f"📌 Exibindo {len(highlights_filtrados)} de {len(highlights)} itens")
+            st.subheader("Resumo Estruturado")
             
             # Prévia
-            with st.expander("👁️ Visualizar prévia", expanded=False):
-                for i, h in enumerate(highlights_filtrados[:5], 1):
+            with st.expander("📋 Visualizar prévia", expanded=False):
+                for i, h in enumerate(highlights[:3], 1):
                     st.markdown(f"**Item {i:02d} | Página {h['pag']}**")
-                    st.write(h['texto'][:200] + "..." if len(h['texto']) > 200 else h['texto'])
+                    st.write(h['texto'])
                     st.divider()
-                if len(highlights_filtrados) > 5:
-                    st.caption(f"...e mais {len(highlights_filtrados) - 5} itens")
+                if len(highlights) > 3:
+                    st.caption(f"...e mais {len(highlights) - 3} itens")
             
             # Downloads
             col1, col2 = st.columns(2)
             
             with col1:
-                pdf_resumo = criar_pdf_resumo(highlights_filtrados, nome_modulo)
+                pdf_resumo = criar_pdf_resumo(highlights, nome_modulo)
                 st.download_button(
                     "📥 Baixar PDF",
                     pdf_resumo,
                     f"Resumo_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
+                    "application/pdf"
                 )
             
             with col2:
-                word_resumo = criar_word_resumo(highlights_filtrados, nome_modulo)
+                word_resumo = criar_word_resumo(highlights, nome_modulo)
                 st.download_button(
                     "📥 Baixar Word",
                     word_resumo,
                     f"Resumo_{nome_modulo.replace(' ', '_')}.docx",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
         
         with tab2:
-            st.subheader("🗂️ Material de Revisão")
+            st.subheader("Material de Revisão Ativa")
             
             col_x, col_y = st.columns(2)
             
             with col_x:
                 pdf_perguntas = criar_pdf_perguntas(highlights)
                 st.download_button(
-                    "📝 Roteiro P&R",
+                    "📝 Baixar Roteiro P&R",
                     pdf_perguntas,
                     f"Roteiro_PR_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
+                    "application/pdf"
                 )
             
             with col_y:
                 pdf_flashcards = criar_pdf_flashcards(highlights)
                 st.download_button(
-                    "✂️ Flashcards",
+                    "✂️ Baixar Flashcards",
                     pdf_flashcards,
                     f"Flashcards_{nome_modulo.replace(' ', '_')}.pdf",
-                    "application/pdf",
-                    use_container_width=True
+                    "application/pdf"
                 )
         
         with tab3:
             st.subheader("🧠 Simulado Certo ou Errado")
             
             num_questoes = min(len(highlights), 5)
+            amostra = random.sample(highlights, num_questoes)
             
-            if 'simulado_atual' not in st.session_state or st.button("🔄 Novo Simulado"):
-                st.session_state.simulado_atual = random.sample(highlights, num_questoes)
-                st.session_state.respostas_simulado = {}
-            
-            amostra = st.session_state.simulado_atual
+            # Estado para controlar respostas
+            if 'respostas' not in st.session_state:
+                st.session_state.respostas = {}
             
             for idx, item in enumerate(amostra):
                 st.markdown(f"**Questão {idx+1}** (Página {item['pag']})")
                 st.info(item['texto'])
                 
                 resp = st.radio(
-                    "Sua avaliação:",
+                    f"Sua avaliação:",
                     ["Selecione", "Certo", "Errado"],
                     key=f"qz_{idx}",
                     horizontal=True
@@ -664,9 +373,9 @@ def main():
                 
                 if resp != "Selecione":
                     if resp == "Certo":
-                        st.success("✅ Correto!")
+                        st.success("✅ Correto! Afirmação condizente com o material.")
                     else:
-                        st.error("❌ Errado. A afirmação está correta.")
+                        st.error("❌ Errado. De acordo com o material, a afirmação está correta.")
                 
                 st.divider()
         
