@@ -618,26 +618,24 @@ def main():
         with tab2:
             st.subheader("🗂️ Material de Revisão")
             
-            st.info("💡 **Atenção:** Os flashcards e perguntas usam TODO o conteúdo do PDF, não apenas os destaques!")
-            
             col_x, col_y = st.columns(2)
             
             with col_x:
-                pdf_perguntas = criar_pdf_perguntas(highlights, texto_completo)
+                pdf_perguntas = criar_pdf_perguntas(highlights)
                 st.download_button(
-                    "📝 Roteiro P&R (Todo Conteúdo)",
+                    "📝 Roteiro P&R",
                     pdf_perguntas,
-                    f"Roteiro_PR_Completo_{nome_modulo.replace(' ', '_')}.pdf",
+                    f"Roteiro_PR_{nome_modulo.replace(' ', '_')}.pdf",
                     "application/pdf",
                     use_container_width=True
                 )
             
             with col_y:
-                pdf_flashcards = criar_pdf_flashcards(highlights, texto_completo)
+                pdf_flashcards = criar_pdf_flashcards(highlights)
                 st.download_button(
-                    "✂️ Flashcards (Todo Conteúdo)",
+                    "✂️ Flashcards",
                     pdf_flashcards,
-                    f"Flashcards_Completo_{nome_modulo.replace(' ', '_')}.pdf",
+                    f"Flashcards_{nome_modulo.replace(' ', '_')}.pdf",
                     "application/pdf",
                     use_container_width=True
                 )
