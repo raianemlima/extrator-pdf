@@ -526,6 +526,8 @@ def renderizar_dashboard_estatisticas(stats: Dict):
             for art, count in artigos_top
         ])
         st.markdown(f'<div>{badges_html}</div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     """Cria PDF do resumo formatado."""
     pdf = FPDF()
     pdf.add_page()
@@ -761,8 +763,6 @@ def main():
             # Dashboard de estatísticas
             stats = gerar_estatisticas(highlights)
             renderizar_dashboard_estatisticas(stats)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("📄 Resumo Estruturado")
             
             # Filtros inteligentes
