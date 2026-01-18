@@ -645,36 +645,17 @@ def main():
         with tab3:
             st.subheader("🧠 Simulado Certo ou Errado")
             
-            st.info("💡 **Atenção:** O simulado usa TODO o conteúdo do PDF!")
-            
-            # Criar pool de questões do texto completo
-            paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
-            
-            if not paragrafos:
-                st.warning("⚠️ Não foi possível extrair conteúdo para o simulado.")
-                return
-            
-            num_questoes = min(len(paragrafos), 10)
+            num_questoes = min(len(highlights), 5)
             
             if 'simulado_atual' not in st.session_state or st.button("🔄 Novo Simulado"):
-                # Seleciona parágrafos aleatórios
-                paragrafos_selecionados = random.sample(paragrafos, num_questoes)
-                
-                # Cria estrutura similar aos highlights
-                st.session_state.simulado_atual = [
-                    {
-                        'texto': limpar_texto_total(p),
-                        'pag': 'N/A'
-                    }
-                    for p in paragrafos_selecionados
-                ]
+                st.session_state.simulado_atual = random.sample(highlights, num_questoes)
                 st.session_state.respostas_simulado = {}
             
             amostra = st.session_state.simulado_atual
             
             for idx, item in enumerate(amostra):
-                st.markdown(f"**Questão {idx+1} de {len(amostra)}**")
-                st.info(item['texto'][:300] + "..." if len(item['texto']) > 300 else item['texto'])
+                st.markdown(f"**Questão {idx+1}** (Página {item['pag']})")
+                st.info(item['texto'])
                 
                 resp = st.radio(
                     "Sua avaliação:",
@@ -687,7 +668,7 @@ def main():
                     if resp == "Certo":
                         st.success("✅ Correto!")
                     else:
-                        st.error("❌ Errado. A afirmação está correta segundo o material.")
+                        st.error("❌ Errado. A afirmação está correta.")
                 
                 st.divider()
         
