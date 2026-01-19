@@ -386,4 +386,178 @@ def criar_pdf_flashcards(highlights: List[Dict]) -> bytes:
         pdf.multi_cell(190, 8, txt_f, border=1, align='J')
         pdf.ln(5)
     
-    return bytes
+    return bytes(pdf.output())
+
+
+def renderizar_cabecalho():
+    """Renderiza o cabeçalho moderno da aplicação."""
+    st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, {COR_VERDE_DUO_HEX} 0%, {COR_VERDE_ESCURO} 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        ">
+            <h1 style="
+                color: white;
+                margin: 0;
+                font-size: 2rem;
+                font-weight: 700;
+            ">
+                RESUMO INTELIGENTE
+            </h1>
+            <p style="
+                color: white;
+                margin: 0.5rem 0 0 0;
+                font-weight: 600;
+            ">
+                Cursos Duo
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def renderizar_rodape():
+    """Renderiza o rodapé moderno."""
+    st.markdown(f"""
+        <hr>
+        <p style='text-align: center; color: gray; font-size: 0.85rem;'>
+            💬 Dúvidas: <a href="mailto:sugestoes@cursosduo.com.br" 
+               style="color: {COR_VERDE_ESCURO}; text-decoration: none;">
+               sugestoes@cursosduo.com.br
+            </a>
+        </p>
+    """, unsafe_allow_html=True)
+
+
+def main():
+    """Função principal da aplicação."""
+    renderizar_cabecalho()
+    
+    # Upload e configuração
+    uploaded_file = st.file_uploader(
+        "📤 Suba o material do Cursos Duo (PDF)",
+        type="pdf"
+    )
+    
+    nome_modulo = st.text_input(
+        "📝 Identificação do Material",
+        value="Revisão Ponto 6"
+    )
+    
+    if uploaded_file is None:
+        st.info("👆 Faça upload de um PDF com destaques (highlights) para começar.")
+        return
+    
+    try:
+        # Extração de destaques
+        with st.spinner("🔍 Analisando PDF e extraindo destaques..."):
+            highlights = extrair_destaques(uploaded_file)
+        
+        if not highlights:
+            st.warning("⚠️ Nenhum destaque encontrado. Marque os trechos importantes com highlight.")
+            return
+        
+        st.success(f"✅ **{len(highlights)} pontos de estudo** identificados!")
+        
+        # Abas de conteúdo
+        tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
+        
+        with tab1:
+            st.subheader("📄 Resumo Estruturado")
+            
+            # Prévia
+            with st.expander("👁️ Visualizar prévia", expanded=False):
+                for i, h in enumerate(highlights[:3], 1):
+                    st.markdown(f"**Item {i:02d} | Página {h['pag']}**")
+                    st.write(h['texto'])
+                    st.divider()
+                if len(highlights) > 3:
+                    st.caption(f"...e mais {len(highlights) - 3} itens")
+            
+            # Downloads
+            st.markdown("### 💾 Fazer Download")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                pdf_resumo = criar_pdf_resumo(highlights, nome_modulo)
+                st.download_button(
+                    "📥 Baixar PDF",
+                    pdf_resumo,
+                    f"Resumo_{nome_modulo.replace(' ', '_')}.pdf",
+                    "application/pdf"
+                )
+            
+            with col2:
+                word_resumo = criar_word_resumo(highlights, nome_modulo)
+                st.download_button(
+                    "📥 Baixar Word",
+                    word_resumo,
+                    f"Resumo_{nome_modulo.replace(' ', '_')}.docx",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+        
+        with tab2:
+            st.subheader("🗂️ Material de Revisão Ativa")
+            
+            col_x, col_y = st.columns(2)
+            
+            with col_x:
+                pdf_perguntas = criar_pdf_perguntas(highlights)
+                st.download_button(
+                    "📝 Baixar Roteiro P&R",
+                    pdf_perguntas,
+                    f"Roteiro_PR_{nome_modulo.replace(' ', '_')}.pdf",
+                    "application/pdf"
+                )
+            
+            with col_y:
+                pdf_flashcards = criar_pdf_flashcards(highlights)
+                st.download_button(
+                    "✂️ Baixar Flashcards",
+                    pdf_flashcards,
+                    f"Flashcards_{nome_modulo.replace(' ', '_')}.pdf",
+                    "application/pdf"
+                )
+        
+        with tab3:
+            st.subheader("🧠 Simulado Certo ou Errado")
+            
+            num_questoes = min(len(highlights), 5)
+            
+            if 'simulado_atual' not in st.session_state or st.button("🔄 Gerar Novo Simulado"):
+                st.session_state.simulado_atual = random.sample(highlights, num_questoes)
+                st.session_state.respostas = {}
+            
+            amostra = st.session_state.simulado_atual
+            
+            for idx, item in enumerate(amostra):
+                st.markdown(f"**Questão {idx+1} de {len(amostra)}** (Página {item['pag']})")
+                st.info(item['texto'])
+                
+                resp = st.radio(
+                    "Sua avaliação:",
+                    ["Selecione", "Certo", "Errado"],
+                    key=f"qz_{idx}",
+                    horizontal=True
+                )
+                
+                if resp != "Selecione":
+                    if resp == "Certo":
+                        st.success("✅ Correto! Afirmação condizente com o material.")
+                    else:
+                        st.error("❌ Errado. De acordo com o material, a afirmação está correta.")
+                
+                st.divider()
+        
+        renderizar_rodape()
+    
+    except Exception as e:
+        st.error(f"❌ Erro no processamento: {str(e)}")
+        st.exception(e)
+
+
+if __name__ == "__main__":
+    main()
