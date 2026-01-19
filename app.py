@@ -220,7 +220,157 @@ def gerar_pergunta_contextualizada(texto: str, analise: Dict = None) -> str:
     return "Explique os aspectos fundamentais apresentados no material."
 
 
-def extrair_destaques(pdf_file) -> Tuple[List[Dict[str, any]], str]:
+def extrair_conteudo_inteligente(texto_completo: str) -> List[Dict[str, any]]:
+    """
+    Extrai conteúdo relevante do PDF completo de forma inteligente.
+    Identifica seções, conceitos-chave e estrutura lógica.
+    
+    Returns:
+        Lista de blocos de conteúdo estruturados e relevantes
+    """
+    if not texto_completo:
+        return []
+    
+    blocos_relevantes = []
+    
+    # Limpa o texto
+    linhas = [linha.strip() for linha in texto_completo.split('\n') if linha.strip()]
+    
+    # Padrões que indicam início de seções importantes
+    padroes_secao = [
+        r'^\d+\.\s+[A-ZÀÁÂÃÉÊÍÓÔÕÚÇ]',  # 1. TITULO
+        r'^[A-ZÀÁÂÃÉÊÍÓÔÕÚÇ]{2,}:',      # TITULO:
+        r'^[a-z]\)',                      # a) item
+        r'^\d+\)',                        # 1) item
+        r'^Art\.?\s*\d+',                 # Art. 52
+        r'^§\s*\d+',                      # § 1º
+        r'^-\s+[A-Z]',                    # - Item
+    ]
+    
+    bloco_atual = []
+    titulo_atual = None
+    pagina_estimada = 1
+    
+    for i, linha in enumerate(linhas):
+        # Detecta quebra de página (heurística)
+        if any(x in linha.lower() for x in ['última atualização', 'dúvidas e sugestões', 'página']):
+            pagina_estimada += 1
+            continue
+        
+        # Ignora linhas muito curtas (menos de 20 caracteres)
+        if len(linha) < 20:
+            # Se é um título potencial, guarda
+            if any(re.match(p, linha) for p in padroes_secao):
+                titulo_atual = linha
+            continue
+        
+        # Detecta início de nova seção relevante
+        is_secao = any(re.match(p, linha) for p in padroes_secao)
+        
+        if is_secao:
+            # Salva bloco anterior se houver conteúdo significativo
+            if bloco_atual and len(' '.join(bloco_atual)) > 100:
+                texto_bloco = ' '.join(bloco_atual)
+                analise = analisar_conteudo_juridico(texto_bloco)
+                
+                blocos_relevantes.append({
+                    'titulo': titulo_atual or 'Conceito',
+                    'texto': limpar_texto_total(texto_bloco),
+                    'analise': analise,
+                    'pag': pagina_estimada,
+                    'tipo': 'secao'
+                })
+            
+            # Inicia novo bloco
+            bloco_atual = [linha]
+            titulo_atual = linha if len(linha) < 100 else None
+        else:
+            bloco_atual.append(linha)
+        
+        # Limita tamanho do bloco (máximo 800 palavras)
+        if len(' '.join(bloco_atual).split()) > 800:
+            texto_bloco = ' '.join(bloco_atual)
+            analise = analisar_conteudo_juridico(texto_bloco)
+            
+            blocos_relevantes.append({
+                'titulo': titulo_atual or 'Conceito',
+                'texto': limpar_texto_total(texto_bloco),
+                'analise': analise,
+                'pag': pagina_estimada,
+                'tipo': 'secao'
+            })
+            
+            bloco_atual = []
+            titulo_atual = None
+    
+    # Adiciona último bloco
+    if bloco_atual and len(' '.join(bloco_atual)) > 100:
+        texto_bloco = ' '.join(bloco_atual)
+        analise = analisar_conteudo_juridico(texto_bloco)
+        
+        blocos_relevantes.append({
+            'titulo': titulo_atual or 'Conceito',
+            'texto': limpar_texto_total(texto_bloco),
+            'analise': analise,
+            'pag': pagina_estimada,
+            'tipo': 'secao'
+        })
+    
+    # Filtra blocos muito similares (remove duplicatas)
+    blocos_unicos = []
+    textos_vistos = set()
+    
+    for bloco in blocos_relevantes:
+        # Usa primeiras 100 caracteres como fingerprint
+        fingerprint = bloco['texto'][:100].lower()
+        if fingerprint not in textos_vistos:
+            textos_vistos.add(fingerprint)
+            blocos_unicos.append(bloco)
+    
+    return blocos_unicos
+
+
+def extrair_definicoes_e_conceitos(texto_completo: str) -> List[Dict[str, str]]:
+    """
+    Extrai definições e conceitos-chave do material.
+    Ideal para flashcards de memorização.
+    """
+    definicoes = []
+    
+    # Padrões que indicam definições
+    padroes_definicao = [
+        r'([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][^.!?]{10,80})\s+(?:é|são|consiste|significa|representa|corresponde)\s+([^.!?]{20,200})[.!?]',
+        r'(?:Define-se|Entende-se|Considera-se)\s+([^.!?]{10,80})\s+como\s+([^.!?]{20,200})[.!?]',
+        r'([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][^:]{10,80}):\s*([^.!?]{20,200})[.!?]',
+    ]
+    
+    for padrao in padroes_definicao:
+        matches = re.finditer(padrao, texto_completo, re.MULTILINE)
+        for match in matches:
+            conceito = match.group(1).strip()
+            definicao = match.group(2).strip()
+            
+            # Valida qualidade
+            if (len(conceito) > 10 and len(definicao) > 20 and 
+                not any(x in conceito.lower() for x in ['página', 'atualização', 'dúvidas'])):
+                
+                definicoes.append({
+                    'conceito': limpar_texto_total(conceito),
+                    'definicao': limpar_texto_total(definicao),
+                    'tipo': 'definicao'
+                })
+    
+    # Remove duplicatas
+    definicoes_unicas = []
+    conceitos_vistos = set()
+    
+    for def_item in definicoes:
+        conceito_lower = def_item['conceito'].lower()[:50]
+        if conceito_lower not in conceitos_vistos:
+            conceitos_vistos.add(conceito_lower)
+            definicoes_unicas.append(def_item)
+    
+    return definicoes_unicas[:30]  # Limita a 30 definições mais relevantes
     """
     Extrai destaques do PDF com análise inteligente E o texto completo.
     
@@ -345,7 +495,93 @@ def criar_word_resumo(highlights: List[Dict], nome_modulo: str) -> bytes:
     return buffer.getvalue()
 
 
-def criar_pdf_perguntas(highlights: List[Dict], texto_completo: str = None) -> bytes:
+def criar_pdf_perguntas(blocos_conteudo: List[Dict], nome_modulo: str) -> bytes:
+    """
+    Cria PDF com perguntas e respostas baseado em BLOCOS ESTRUTURADOS.
+    Garante coerência e qualidade nas questões.
+    """
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    
+    # Cabeçalho do documento
+    pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(190, 10, "ROTEIRO DE PERGUNTAS E RESPOSTAS", ln=True, align='C', fill=True)
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(190, 6, nome_modulo.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C', fill=True)
+    pdf.ln(10)
+    
+    # Limita quantidade de questões
+    blocos_selecionados = blocos_conteudo[:40]
+    
+    for i, bloco in enumerate(blocos_selecionados, 1):
+        analise = bloco.get("analise", {})
+        
+        # Cabeçalho da questão
+        pdf.set_fill_color(248, 252, 248)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(60, 90, 60)
+        
+        titulo = bloco.get('titulo', 'Conceito')[:60]
+        header = f"  QUESTAO {i:02d}: {titulo}"
+        
+        pdf.cell(190, 8, header.encode('latin-1', 'replace').decode('latin-1'), 
+                ln=True, fill=True, border='B')
+        
+        # Badges informativos
+        pdf.set_font("Helvetica", size=8)
+        pdf.set_text_color(100, 100, 100)
+        badges = []
+        
+        if analise.get("tema_principal"):
+            badges.append(f"Tema: {analise['tema_principal']}")
+        if analise.get("nivel_complexidade"):
+            badges.append(f"Nivel: {analise['nivel_complexidade']}")
+        if bloco.get('pag'):
+            badges.append(f"Pag. {bloco['pag']}")
+        
+        if badges:
+            pdf.cell(190, 5, " | ".join(badges).encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        
+        pdf.ln(2)
+        
+        # Pergunta contextualizada
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(0, 0, 0)
+        pergunta = gerar_pergunta_contextualizada(bloco['texto'], analise)
+        pdf.multi_cell(190, 6, f"PERGUNTA: {pergunta}".encode('latin-1', 'replace').decode('latin-1'), align='L')
+        
+        # Artigos citados
+        if analise.get("artigos_citados"):
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.set_text_color(100, 100, 100)
+            artigos_str = ", ".join([f"Art. {a}" for a in analise["artigos_citados"][:5]])
+            pdf.cell(190, 5, f"Base normativa: {artigos_str}".encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        
+        pdf.ln(1)
+        
+        # Resposta
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*COR_VERDE_DUO_RGB)
+        pdf.cell(190, 6, "RESPOSTA DO MATERIAL:", ln=True)
+        
+        pdf.set_font("Helvetica", size=9)
+        pdf.set_text_color(20, 20, 20)
+        
+        # Limita tamanho da resposta para caber melhor
+        texto_resposta = bloco['texto']
+        if len(texto_resposta) > 600:
+            texto_resposta = texto_resposta[:600] + "..."
+        
+        txt_pr = texto_resposta.encode('latin-1', 'replace').decode('latin-1')
+        pdf.set_draw_color(*COR_VERDE_DUO_RGB)
+        pdf.multi_cell(190, 5, txt_pr, align='J', border='L')
+        
+        pdf.ln(5)
+    
+    return bytes(pdf.output())
     """
     Cria PDF com perguntas e respostas.
     Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
@@ -442,7 +678,141 @@ def criar_pdf_perguntas(highlights: List[Dict], texto_completo: str = None) -> b
     return bytes(pdf.output())
 
 
-def criar_pdf_flashcards(highlights: List[Dict], texto_completo: str = None) -> bytes:
+def criar_pdf_flashcards(definicoes: List[Dict], blocos_conteudo: List[Dict], nome_modulo: str) -> bytes:
+    """
+    Cria PDF com flashcards de alta qualidade.
+    Combina definições extraídas + conceitos-chave dos blocos.
+    """
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Cabeçalho
+    pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(190, 10, "FLASHCARDS DE REVISAO", ln=True, align='C', fill=True)
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(190, 6, nome_modulo.encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C', fill=True)
+    pdf.ln(10)
+    
+    contador = 0
+    
+    # Parte 1: Flashcards de DEFINIÇÕES (mais efetivos para memorização)
+    if definicoes:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*COR_VERDE_DUO_RGB)
+        pdf.cell(190, 8, "PARTE 1: DEFINICOES E CONCEITOS-CHAVE", ln=True)
+        pdf.ln(3)
+        
+        for def_item in definicoes[:25]:  # Máximo 25 definições
+            contador += 1
+            
+            # Frente do card (PERGUNTA)
+            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.cell(190, 8, f" CARD {contador:02d} - FRENTE", border=1, ln=True, fill=True)
+            
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", "B", 11)
+            pergunta = f"O que e/sao: {def_item['conceito']}?"
+            pdf.multi_cell(190, 7, pergunta.encode('latin-1', 'replace').decode('latin-1'), 
+                          border='LR', align='C')
+            
+            # Verso do card (RESPOSTA)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(*COR_VERDE_DUO_RGB)
+            pdf.cell(190, 6, " VERSO - RESPOSTA:", border='LR', ln=True, fill=True)
+            
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", size=10)
+            resposta = def_item['definicao']
+            pdf.multi_cell(190, 6, resposta.encode('latin-1', 'replace').decode('latin-1'), 
+                          border='LRB', align='J')
+            
+            pdf.ln(4)
+    
+    # Parte 2: Flashcards de CONCEITOS IMPORTANTES (dos blocos estruturados)
+    if blocos_conteudo and contador < 50:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*COR_VERDE_DUO_RGB)
+        pdf.cell(190, 8, "PARTE 2: CONCEITOS E REGRAS IMPORTANTES", ln=True)
+        pdf.ln(3)
+        
+        # Seleciona blocos mais relevantes (com artigos, alta complexidade)
+        blocos_prioritarios = sorted(
+            blocos_conteudo,
+            key=lambda x: (
+                len(x.get('analise', {}).get('artigos_citados', [])) * 2 +
+                (1 if x.get('analise', {}).get('nivel_complexidade') == 'Alta' else 0)
+            ),
+            reverse=True
+        )[:25]
+        
+        for bloco in blocos_prioritarios:
+            if contador >= 50:  # Limite total de cards
+                break
+            
+            contador += 1
+            analise = bloco.get('analise', {})
+            
+            # Frente do card
+            pdf.set_fill_color(*COR_VERDE_DUO_RGB)
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Helvetica", "B", 10)
+            
+            titulo_card = bloco.get('titulo', 'Conceito')[:50]
+            pdf.cell(190, 8, f" CARD {contador:02d} - {titulo_card}", border=1, ln=True, fill=True)
+            
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", "B", 10)
+            
+            # Pergunta baseada no tema
+            pergunta = gerar_pergunta_contextualizada(bloco['texto'], analise)
+            pdf.multi_cell(190, 6, pergunta.encode('latin-1', 'replace').decode('latin-1'), 
+                          border='LR', align='L')
+            
+            # Verso do card
+            pdf.set_fill_color(240, 240, 240)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(*COR_VERDE_DUO_RGB)
+            pdf.cell(190, 6, " VERSO - RESPOSTA:", border='LR', ln=True, fill=True)
+            
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", size=9)
+            
+            # Resposta resumida
+            texto_card = bloco['texto']
+            if len(texto_card) > 400:
+                texto_card = texto_card[:400] + "..."
+            
+            pdf.multi_cell(190, 5, texto_card.encode('latin-1', 'replace').decode('latin-1'), 
+                          border='LRB', align='J')
+            
+            # Artigos relacionados
+            if analise.get('artigos_citados'):
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(100, 100, 100)
+                artigos = ", ".join([f"Art. {a}" for a in analise['artigos_citados'][:4]])
+                pdf.cell(190, 4, f"Artigos: {artigos}".encode('latin-1', 'replace').decode('latin-1'), 
+                        border='LRB', ln=True)
+            
+            pdf.ln(4)
+    
+    # Rodapé informativo
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(190, 4, 
+        "Dica: Imprima frente e verso, recorte e use para revisao espacada. "
+        "Leia a FRENTE, tente responder mentalmente, depois confira o VERSO.".encode('latin-1', 'replace').decode('latin-1'))
+    
+    return bytes(pdf.output())
     """
     Cria PDF com flashcards.
     Se texto_completo for fornecido, usa TODO o conteúdo do PDF.
@@ -528,15 +898,22 @@ def main():
         return
     
     try:
-        # Extração de destaques E texto completo
-        with st.spinner("Extraindo destaques do PDF..."):
-            highlights, texto_completo = extrair_destaques(uploaded_file)
+        # Extração completa e inteligente
+        with st.spinner("🧠 Analisando PDF e extraindo conteúdo inteligente..."):
+            highlights, texto_completo, blocos_conteudo, definicoes = extrair_destaques(uploaded_file)
         
         if not highlights:
             st.warning("⚠️ Nenhum destaque encontrado. Marque os trechos importantes.")
             return
         
-        st.success(f"✅ {len(highlights)} pontos de estudo identificados.")
+        # Informações de sucesso
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.metric("✅ Destaques", len(highlights))
+        with col_info2:
+            st.metric("📚 Blocos de Conteúdo", len(blocos_conteudo))
+        with col_info3:
+            st.metric("🎯 Definições Extraídas", len(definicoes))
         
         # Abas
         tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
@@ -616,66 +993,134 @@ def main():
                 )
         
         with tab2:
-            st.subheader("🗂️ Material de Revisão")
+            st.subheader("🗂️ Material de Revisão Avançada")
             
-            st.info("💡 **Atenção:** Os flashcards e perguntas usam TODO o conteúdo do PDF, não apenas os destaques!")
+            st.info(f"💡 **Conteúdo Inteligente:** {len(blocos_conteudo)} blocos estruturados + {len(definicoes)} definições extraídas automaticamente!")
+            
+            # Prévia do conteúdo
+            with st.expander("👁️ Ver prévia do conteúdo extraído", expanded=False):
+                st.markdown("**📚 Blocos de Conteúdo:**")
+                for i, bloco in enumerate(blocos_conteudo[:3], 1):
+                    st.markdown(f"**{i}. {bloco.get('titulo', 'Conceito')}**")
+                    st.caption(bloco['texto'][:150] + "...")
+                    st.divider()
+                
+                if definicoes:
+                    st.markdown("**🎯 Definições Encontradas:**")
+                    for i, def_item in enumerate(definicoes[:3], 1):
+                        st.markdown(f"**{i}. {def_item['conceito']}**")
+                        st.caption(def_item['definicao'][:100] + "...")
+                        st.divider()
+                
+                st.caption(f"...e muito mais conteúdo estruturado!")
             
             col_x, col_y = st.columns(2)
             
             with col_x:
-                pdf_perguntas = criar_pdf_perguntas(highlights, texto_completo)
+                pdf_perguntas = criar_pdf_perguntas(blocos_conteudo, nome_modulo)
                 st.download_button(
-                    "📝 Roteiro P&R (Todo Conteúdo)",
+                    "📝 Roteiro P&R Completo",
                     pdf_perguntas,
-                    f"Roteiro_PR_Completo_{nome_modulo.replace(' ', '_')}.pdf",
+                    f"Roteiro_PR_{nome_modulo.replace(' ', '_')}.pdf",
                     "application/pdf",
-                    use_container_width=True
+                    use_container_width=True,
+                    help=f"Contém {len(blocos_conteudo[:40])} questões estruturadas do material completo"
                 )
             
             with col_y:
-                pdf_flashcards = criar_pdf_flashcards(highlights, texto_completo)
+                pdf_flashcards = criar_pdf_flashcards(definicoes, blocos_conteudo, nome_modulo)
                 st.download_button(
-                    "✂️ Flashcards (Todo Conteúdo)",
+                    "✂️ Flashcards Inteligentes",
                     pdf_flashcards,
-                    f"Flashcards_Completo_{nome_modulo.replace(' ', '_')}.pdf",
+                    f"Flashcards_{nome_modulo.replace(' ', '_')}.pdf",
                     "application/pdf",
-                    use_container_width=True
+                    use_container_width=True,
+                    help=f"{len(definicoes)} definições + conceitos-chave em formato frente/verso"
                 )
         
         with tab3:
-            st.subheader("🧠 Simulado Certo ou Errado")
+            st.subheader("🧠 Simulado Inteligente - Certo ou Errado")
             
-            st.info("💡 **Atenção:** O simulado usa TODO o conteúdo do PDF!")
+            st.info(f"💡 **Simulado baseado em {len(blocos_conteudo)} blocos de conteúdo estruturado!**")
             
-            # Criar pool de questões do texto completo
-            paragrafos = [p.strip() for p in texto_completo.split('\n') if len(p.strip()) > 100]
+            # Configurações do simulado
+            col_config1, col_config2 = st.columns(2)
             
-            if not paragrafos:
-                st.warning("⚠️ Não foi possível extrair conteúdo para o simulado.")
+            with col_config1:
+                num_questoes = st.slider("Número de questões", 3, min(20, len(blocos_conteudo)), 10)
+            
+            with col_config2:
+                filtro_complexidade = st.selectbox(
+                    "Filtrar por complexidade",
+                    ["Todas", "Alta", "Média", "Básica"],
+                    key="filtro_simulado_complexidade"
+                )
+            
+            # Filtra blocos por complexidade
+            blocos_simulado = blocos_conteudo.copy()
+            
+            if filtro_complexidade != "Todas":
+                blocos_simulado = [
+                    b for b in blocos_simulado 
+                    if b.get('analise', {}).get('nivel_complexidade') == filtro_complexidade
+                ]
+            
+            if len(blocos_simulado) < num_questoes:
+                st.warning(f"⚠️ Apenas {len(blocos_simulado)} blocos disponíveis com esta complexidade.")
+                num_questoes = len(blocos_simulado)
+            
+            if not blocos_simulado:
+                st.error("❌ Nenhum conteúdo disponível para o simulado.")
                 return
             
-            num_questoes = min(len(paragrafos), 10)
-            
-            if 'simulado_atual' not in st.session_state or st.button("🔄 Novo Simulado"):
-                # Seleciona parágrafos aleatórios
-                paragrafos_selecionados = random.sample(paragrafos, num_questoes)
-                
-                # Cria estrutura similar aos highlights
-                st.session_state.simulado_atual = [
-                    {
-                        'texto': limpar_texto_total(p),
-                        'pag': 'N/A'
-                    }
-                    for p in paragrafos_selecionados
-                ]
+            # Gera simulado
+            if 'simulado_atual' not in st.session_state or st.button("🔄 Gerar Novo Simulado", type="primary"):
+                # Seleciona blocos aleatórios
+                st.session_state.simulado_atual = random.sample(blocos_simulado, num_questoes)
                 st.session_state.respostas_simulado = {}
+                st.session_state.gabarito_revelado = False
+                st.rerun()
             
             amostra = st.session_state.simulado_atual
             
-            for idx, item in enumerate(amostra):
-                st.markdown(f"**Questão {idx+1} de {len(amostra)}**")
-                st.info(item['texto'][:300] + "..." if len(item['texto']) > 300 else item['texto'])
+            # Contador de respostas
+            total_respondidas = sum(1 for r in st.session_state.respostas_simulado.values() if r != "Selecione")
+            
+            st.progress(total_respondidas / len(amostra), 
+                       text=f"Progresso: {total_respondidas}/{len(amostra)} questões")
+            
+            # Questões
+            for idx, bloco in enumerate(amostra):
+                analise = bloco.get('analise', {})
                 
+                st.markdown(f"""
+                    <div class="card-duo">
+                        <strong style="color: {COR_VERDE_ESCURO};">
+                            Questão {idx+1} de {len(amostra)}
+                        </strong>
+                """, unsafe_allow_html=True)
+                
+                # Badges
+                badges = []
+                if analise.get("tema_principal"):
+                    badges.append(f"🎯 {analise['tema_principal']}")
+                if analise.get("nivel_complexidade"):
+                    emoji_nivel = {"Alta": "🔥", "Média": "📊", "Básica": "✅"}
+                    badges.append(f"{emoji_nivel.get(analise['nivel_complexidade'], '📌')} {analise['nivel_complexidade']}")
+                
+                if badges:
+                    st.markdown(" • ".join(badges))
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Exibe texto da questão (limitado para não ficar muito longo)
+                texto_questao = bloco['texto']
+                if len(texto_questao) > 400:
+                    texto_questao = texto_questao[:400] + "..."
+                
+                st.info(texto_questao)
+                
+                # Resposta do usuário
                 resp = st.radio(
                     "Sua avaliação:",
                     ["Selecione", "Certo", "Errado"],
@@ -683,13 +1128,64 @@ def main():
                     horizontal=True
                 )
                 
+                # Armazena resposta
                 if resp != "Selecione":
+                    st.session_state.respostas_simulado[idx] = resp
+                
+                # Mostra feedback se gabarito revelado
+                if st.session_state.get('gabarito_revelado', False) and resp != "Selecione":
                     if resp == "Certo":
-                        st.success("✅ Correto!")
+                        st.success("✅ **Correto!** Esta afirmação está de acordo com o material.")
+                        
+                        # Dica de revisão
+                        if analise.get('artigos_citados'):
+                            st.caption(f"💡 Artigos relacionados: {', '.join(analise['artigos_citados'][:3])}")
                     else:
-                        st.error("❌ Errado. A afirmação está correta segundo o material.")
+                        st.error("❌ **Errado.** Segundo o material, esta afirmação está correta.")
+                        
+                        # Mostrar explicação
+                        with st.expander("📖 Ver explicação"):
+                            st.write(bloco['texto'][:300])
+                            if analise.get('artigos_citados'):
+                                st.caption(f"📜 Base legal: Artigos {', '.join(analise['artigos_citados'][:3])}")
                 
                 st.divider()
+            
+            # Botão para revelar gabarito
+            if total_respondidas > 0 and not st.session_state.get('gabarito_revelado', False):
+                if st.button("📊 Revelar Gabarito Completo", type="primary", use_container_width=True):
+                    st.session_state.gabarito_revelado = True
+                    st.rerun()
+            
+            # Estatísticas finais
+            if st.session_state.get('gabarito_revelado', False) and total_respondidas > 0:
+                st.markdown("### 🎯 Resultado Final do Simulado")
+                
+                # Conta acertos (todas as respostas "Certo" são corretas)
+                acertos = sum(1 for r in st.session_state.respostas_simulado.values() if r == "Certo")
+                percentual = (acertos / total_respondidas) * 100
+                
+                col_res1, col_res2, col_res3 = st.columns(3)
+                
+                with col_res1:
+                    st.metric("Acertos", f"{acertos}/{total_respondidas}")
+                
+                with col_res2:
+                    st.metric("Aproveitamento", f"{percentual:.1f}%")
+                
+                with col_res3:
+                    if percentual >= 80:
+                        st.metric("Status", "🏆 Excelente!")
+                    elif percentual >= 60:
+                        st.metric("Status", "📈 Bom!")
+                    else:
+                        st.metric("Status", "📚 Revisar")
+                
+                # Recomendações
+                if percentual < 70:
+                    st.warning("💡 **Recomendação:** Revise os flashcards e refaça o simulado para fixar o conteúdo!")
+                else:
+                    st.success("🎉 **Parabéns!** Você está dominando o conteúdo. Continue praticando!")
         
         renderizar_rodape()
     
