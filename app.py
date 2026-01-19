@@ -371,6 +371,44 @@ def extrair_definicoes_e_conceitos(texto_completo: str) -> List[Dict[str, str]]:
             definicoes_unicas.append(def_item)
     
     return definicoes_unicas[:30]  # Limita a 30 definições mais relevantes
+
+
+def extrair_destaques(pdf_file) -> Tuple[List[Dict[str, any]], str, List[Dict], List[Dict]]:
+    """
+    Extrai destaques do PDF com análise inteligente E o texto completo.
+    
+    Returns:
+        Tuple: (destaques, texto_completo, blocos_conteudo, definicoes)
+    """
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    highlights = []
+    texto_completo = ""
+    
+    for page_num, page in enumerate(doc):
+        # Extrair texto completo da página
+        texto_completo += page.get_text() + "\n"
+        
+        # Extrair destaques
+        for annot in page.annots():
+            if annot.type[0] == 8:
+                texto_extraido = page.get_textbox(annot.rect)
+                texto_limpo = limpar_texto_total(texto_extraido)
+                
+                if texto_limpo:
+                    analise = analisar_conteudo_juridico(texto_limpo)
+                    
+                    highlights.append({
+                        "pag": page_num + 1,
+                        "texto": texto_limpo,
+                        "analise": analise,
+                        "timestamp": datetime.now()
+                    })
+    
+    # Extrai conteúdo estruturado do PDF completo
+    blocos_conteudo = extrair_conteudo_inteligente(texto_completo)
+    definicoes = extrair_definicoes_e_conceitos(texto_completo)
+    
+    return highlights, texto_completo, blocos_conteudo, definicoes
     """
     Extrai destaques do PDF com análise inteligente E o texto completo.
     
