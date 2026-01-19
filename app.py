@@ -462,8 +462,8 @@ def main():
         
         st.success(f"✅ **{len(highlights)} pontos de estudo** identificados!")
         
-        # Abas de conteúdo
-        tab1, tab2, tab3 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R", "🧠 Simulado"])
+        # Abas de conteúdo (Simulado removido)
+        tab1, tab2 = st.tabs(["📄 Resumo", "🗂️ Flashcards & P&R"])
         
         with tab1:
             st.subheader("📄 Resumo Estruturado")
@@ -521,36 +521,6 @@ def main():
                     f"Flashcards_{nome_modulo.replace(' ', '_')}.pdf",
                     "application/pdf"
                 )
-        
-        with tab3:
-            st.subheader("🧠 Simulado Certo ou Errado")
-            
-            num_questoes = min(len(highlights), 5)
-            
-            if 'simulado_atual' not in st.session_state or st.button("🔄 Gerar Novo Simulado"):
-                st.session_state.simulado_atual = random.sample(highlights, num_questoes)
-                st.session_state.respostas = {}
-            
-            amostra = st.session_state.simulado_atual
-            
-            for idx, item in enumerate(amostra):
-                st.markdown(f"**Questão {idx+1} de {len(amostra)}** (Página {item['pag']})")
-                st.info(item['texto'])
-                
-                resp = st.radio(
-                    "Sua avaliação:",
-                    ["Selecione", "Certo", "Errado"],
-                    key=f"qz_{idx}",
-                    horizontal=True
-                )
-                
-                if resp != "Selecione":
-                    if resp == "Certo":
-                        st.success("✅ Correto! Afirmação condizente com o material.")
-                    else:
-                        st.error("❌ Errado. De acordo com o material, a afirmação está correta.")
-                
-                st.divider()
         
         renderizar_rodape()
     
